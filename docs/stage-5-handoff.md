@@ -2,7 +2,9 @@
 
 **Written:** 2026-11-07 · **Branch:** `quarrel-stage-5`, created from `quarrel-stage-4` at `59439f2` · **Repository:** `diamster/falls-hacks-2026-quarrel`
 
-This document is the complete, current instruction for Stage 5. It was agreed by the team in a live discussion and supersedes the earlier written brief titled **"Stage 5 — Interactive Objection System"**. **Do not implement that brief**: objections, objection reasons, clarification steps and timer pauses for objections are all out of scope.
+> **Historical handoff, with later approved updates.** Read this document first for context, then [Stage 5 approved decisions](stage-5-decisions.md). The user's updated Stage 5 brief and that decisions record take precedence wherever this original handoff differs. D1–D12 have now been approved with clarifications; do not ask for the same approval again. Each player now writes only their own position; planning waits for both positions and both Ready confirmations; Courtroom is the new-room default; theme selection lives in Settings; private lawyer consultations are excluded from judge/jury evidence. The original text below is retained as implementation history.
+
+This was the original Stage 5 handoff agreed by the team in a live discussion. It superseded the earlier written brief titled **"Stage 5 — Interactive Objection System"**. **Do not implement that brief**: objections, objection reasons, clarification steps and timer pauses for objections remain out of scope.
 
 > **Do not start from `main`.** `main` still holds Stage 2 only. Stages 2.5 → 3 → 4 are chained on their branches; `quarrel-stage-5` contains all of them.
 
@@ -48,9 +50,9 @@ The judge looks at one subtopic at a time; the jury looks at everything.
 
 **Keep:** room create/join/leave, anonymous sessions, readiness, connection status, refresh recovery, the two-seat constraint, the theme picker and all four themes, the topic/position propose-approve flow, host start, Supabase Cloud + the Realtime invalidation signal, the Gemini server engine with demo/fallback modes, the judge-server capability (`JUDGE_SERVER_SECRET`), the `/preview` page and original Jungle artwork, keyboard accessibility, reduced motion, responsive layout.
 
-## 3. Provisional decisions — confirm with the user if you need to deviate
+## 3. Original provisional decisions — now approved with updates
 
-The team has not yet confirmed these defaults. Build them as written; if one turns out to be unworkable, ask the user rather than guessing.
+These defaults were unconfirmed when this handoff was written. The user has since approved D1–D12, including the updates in [the current decisions record](stage-5-decisions.md). Use that record for the approved behavior; request approval before deviating, not before implementing an already approved decision. The table retains the original context, except D9 is clarified to match the approved readiness trigger.
 
 | # | Decision | Default | Notes |
 |---|---|---|---|
@@ -62,7 +64,7 @@ The team has not yet confirmed these defaults. Build them as written; if one tur
 | D6 | Who opens each subtopic | **A opens odd subtopics, B opens even ones** | |
 | D7 | Meaning of "total time" | Each player's own speaking time across all subtopics (example above: 1 + 1 + 2 = 4 min each) | Host picks a preset: 2, 4, 6 or 10 minutes. |
 | D8 | Planner limits | **2–5 subtopics**, each at least **30 s** per player, totals summing exactly to the chosen time | Server normalizes/validates. Subtopic question ≤ 200 chars. |
-| D9 | When the plan is made | Generated after the topic/positions are approved, **shown in the lobby**; host may **regenerate once**; host start locks it | Start still requires approvals, readiness and both players connected. |
+| D9 | When the plan is made | Generated after **both independently written positions and both Ready confirmations**, **shown in the lobby**; host may **regenerate once**; explicit host start locks the current plan | Start requires confirmed positions, readiness, both players connected, and the displayed plan generation. Readiness alone never starts the clocks. |
 | D10 | Lawyer rules | Lawyers may restyle, organize and tighten the player's point in their personality, **but must not add facts, evidence or new arguments** | Lawyer output ≤ ~1.5× the input length, max 900 chars. Player prompt max **600 chars**. |
 | D11 | Message cap | Safety cap of **12 messages per player per subtopic** | Prevents spam with tiny messages. |
 | D12 | No Gemini key (demo mode) | Fixed fallback subtopics from a template, a light deterministic "lawyer" style wrapper, labelled demo/fallback judge summaries and jury verdict | Same structure as AI output, so the game is fully playable without a key. |

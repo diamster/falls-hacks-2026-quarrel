@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { MultiplayerApp } from "@/components/multiplayer-app";
+import { LegacyMultiplayerApp as MultiplayerApp } from "@/components/multiplayer-app";
 import { useRoomClient } from "@/lib/room-client";
 import type { DebateSnapshot } from "@/lib/debate-types";
 import type { RoomSnapshot } from "@/lib/room-types";
@@ -15,6 +15,7 @@ const state = (overrides: Partial<DebateSnapshot> = {}): DebateSnapshot => ({ ph
 const room = (debate: DebateSnapshot, overrides: Partial<RoomSnapshot> = {}): RoomSnapshot => ({ id: "room-id", code: "ABC234", expiresAt: "2030-01-02T00:00:00Z", you: "A", players: [{ slot: "A", name: "Avery", ready: true, connected: true }, { slot: "B", name: "Blair", ready: true, connected: true }], bothReady: true, themeId: "jungle", themeLocked: debate.phase !== "setup", debate, ...overrides });
 function client(current: RoomSnapshot) {
   return { room: current, loading: false, pending: false, judgePending: false, offline: false, live: true, error: "", remainingSeconds: 45,
+    lawyerClocks: { A: 60, B: 60 }, proposeLawyerTopic: vi.fn().mockResolvedValue(true), setOwnPosition: vi.fn().mockResolvedValue(true), planDebate: vi.fn().mockResolvedValue(true), startLawyerDebate: vi.fn().mockResolvedValue(true), sendToLawyer: vi.fn().mockResolvedValue(true), consultLawyer: vi.fn().mockResolvedValue(true),
     askJudge: vi.fn().mockResolvedValue(true),
     leaveRoom: vi.fn().mockResolvedValue(true),
     refresh: vi.fn().mockResolvedValue(true), create: vi.fn().mockResolvedValue(true), join: vi.fn().mockResolvedValue(true), setTheme: vi.fn().mockResolvedValue(true), setReady: vi.fn().mockResolvedValue(true), proposeTopic: vi.fn().mockResolvedValue(true), approveTopic: vi.fn().mockResolvedValue(true), requestChanges: vi.fn().mockResolvedValue(true), startDebate: vi.fn().mockResolvedValue(true), submitArgument: vi.fn().mockResolvedValue(true),

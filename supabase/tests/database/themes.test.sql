@@ -21,7 +21,7 @@ set local request.jwt.claim.sub = '';
 select throws_ok($$select public.set_quarrel_theme('superhero')$$, 'P0001', 'UNAUTHORIZED', 'Theme mutation requires a verified identity');
 set local request.jwt.claim.sub = 'a4444444-4444-4444-8444-444444444444';
 insert into theme_test_room values(public.create_quarrel_room('Theme host'));
-select is((select snapshot->>'themeId' from theme_test_room), 'jungle', 'New room defaults to Jungle');
+select is((select snapshot->>'themeId' from theme_test_room), 'courtroom', 'New room defaults to Courtroom');
 select is((select snapshot->>'themeLocked' from theme_test_room), 'false', 'New room theme starts unlocked');
 select is((select snapshot->>'mode' from theme_test_room), 'solo', 'Only solo mode is playable');
 select is((select snapshot->>'capacity' from theme_test_room), '2', 'Current capacity remains exactly two');

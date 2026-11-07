@@ -5,6 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import type { RoomResponse } from "./room-types";
 import type { ThemeId } from "@/themes";
 import { remainingTurnSeconds, type ServerClock } from "./debate-types";
+import { lawyerClockSeconds } from "./lawyer-types";
 
 const messages: Record<string, string> = {
   ROOM_NOT_FOUND: "That room does not exist. Check the six-character code and try again.",
@@ -47,6 +48,7 @@ export function useRoomClient() {
   const [error, setError] = useState("");
   const [clock, setClock] = useState<ServerClock | null>(null);
   const [remainingSeconds, setRemainingSeconds] = useState(0);
+  const [lawyerClocks, setLawyerClocks] = useState({ A: 0, B: 0 });
   const [askingJudge, setAskingJudge] = useState(false);
   const mounted = useRef(false);
   const active = useRef<Promise<boolean> | null>(null);
@@ -69,7 +71,7 @@ export function useRoomClient() {
         const next = await roomRequest(path, body, abort.signal, expectedRoomId);
         if (!mounted.current || abort.signal.aborted) return false;
         const receivedAt = performance.now();
-        const serverTime = Date.parse(next.room?.debate?.serverNow ?? "");
+        const serverTime = Date.parse(next.room?.lawyer?.serverNow ?? next.room?.debate?.serverNow ?? "");
         setClock(Number.isFinite(serverTime) ? {
           // The display estimates transit time; only Postgres decides expiry.
           serverTimeMs: serverTime + (receivedAt - sentAt) / 2,
@@ -177,6 +179,32 @@ export function useRoomClient() {
   }, [request, data.room?.id]);
 
   const debate = data.room?.debate;
+  const lawyer = data.room?.lawyer;
+  useEffect(() => {
+    if (!lawyer || !clock) return;
+    const tick = () => {
+      const now = clock.serverTimeMs + Math.max(0, performance.now() - clock.receivedAt);
+      setLawyerClocks({ A: lawyerClockSeconds(lawyer, "A", now), B: lawyerClockSeconds(lawyer, "B", now) });
+    };
+    tick();
+    const timer = window.setInterval(tick, 250);
+    return () => window.clearInterval(timer);
+  }, [lawyer, clock]);
+  useEffect(() => {
+    if (!lawyer || offline || lawyer.phase === "setup" || lawyer.phase === "complete" || (lawyer.phase === "planning" && lawyer.planReady)) return;
+    let stopped = false;
+    let timer: number;
+    const reconcile = async () => {
+      while (active.current) await active.current;
+      if (stopped || !mounted.current) return;
+      await request("/api/rooms/lawyer/advance", { revision: lawyer.revision }, roomId ?? null);
+      if (!stopped) timer = window.setTimeout(() => { void reconcile(); }, 1500);
+    };
+    const untilDeadline = lawyer.turnDeadline && clock
+      ? Date.parse(lawyer.turnDeadline) - clock.serverTimeMs - Math.max(0, performance.now() - clock.receivedAt) : 1000;
+    timer = window.setTimeout(() => { void reconcile(); }, Math.max(500, untilDeadline));
+    return () => { stopped = true; window.clearTimeout(timer); };
+  }, [lawyer?.phase, lawyer?.planReady, lawyer?.state, lawyer?.turnDeadline, lawyer?.revision, clock, offline, request, roomId]);
   const deadline = debate?.turnDeadline;
   const revision = debate?.revision;
   const turnIndex = debate?.turnIndex;
@@ -189,7 +217,7 @@ export function useRoomClient() {
   }, [deadline, clock]);
 
   useEffect(() => {
-    if (!deadline || !clock || revision === undefined || turnIndex == null || offline) return;
+    if (lawyer || !deadline || !clock || revision === undefined || turnIndex == null || offline) return;
     let disposed = false;
     let timer: number;
     const reconcile = async () => {
@@ -205,10 +233,16 @@ export function useRoomClient() {
     const remainingMs = Date.parse(deadline) - clock.serverTimeMs - Math.max(0, performance.now() - clock.receivedAt);
     timer = window.setTimeout(() => { void reconcile(); }, Math.max(500, remainingMs));
     return () => { disposed = true; window.clearTimeout(timer); };
-  }, [deadline, clock, revision, turnIndex, offline, request, roomId]);
+  }, [deadline, clock, revision, turnIndex, offline, request, roomId, lawyer]);
 
   return {
-    room: data.room, loading, pending, offline, live, error, refresh, remainingSeconds,
+    room: data.room, loading, pending, offline, live, error, refresh, remainingSeconds, lawyerClocks,
+    proposeLawyerTopic: (topic: string, totalSeconds: number, revision: number) => act("/api/rooms/lawyer/topic", { topic, totalSeconds, revision }),
+    setOwnPosition: (position: string, revision: number) => act("/api/rooms/lawyer/position", { position, revision }),
+    planDebate: (revision: number, regenerate: boolean) => act("/api/rooms/lawyer/plan", { revision, regenerate }),
+    startLawyerDebate: (revision: number, planGeneration: number) => act("/api/rooms/lawyer/start", { revision, planGeneration }),
+    sendToLawyer: (text: string, revision: number, subtopic: number, requestKey: string) => act("/api/rooms/lawyer/argument", { text, revision, subtopic, requestKey }),
+    consultLawyer: (text: string, revision: number, subtopic: number, requestKey: string) => act("/api/rooms/lawyer/consult", { text, revision, subtopic, requestKey }),
     judgePending: askingJudge || Boolean(data.room?.judge?.pendingRequestId),
     askJudge: async (text: string, revision: number, turnIndex: number, requestKey: string) => {
       setAskingJudge(true);

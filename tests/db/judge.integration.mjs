@@ -14,7 +14,7 @@ const databaseUrl = process.env.SUPABASE_URL;
 const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY;
 assert.ok(['localhost', '127.0.0.1'].includes(new URL(origin).hostname), 'Use a local test app.');
 assert.ok(databaseUrl && publishableKey, 'Configure the Supabase URL and publishable key.');
-assert.ok(['localhost', '127.0.0.1'].includes(new URL(databaseUrl).hostname) || process.env.QUARREL_ALLOW_REMOTE_TESTS === 'true', 'Cloud checks require explicit QUARREL_ALLOW_REMOTE_TESTS=true.');
+assert.ok(['localhost', '127.0.0.1'].includes(new URL(databaseUrl).hostname) || (process.env.QUARREL_ALLOW_REMOTE_TESTS === 'true' && new URL(databaseUrl).hostname === 'exjdvtqsalnkghyohyuh.supabase.co'), 'Cloud checks require explicit QUARREL_ALLOW_REMOTE_TESTS=true.');
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 let count = 0;
 function pass(message) { console.log(`PASS ${++count}: ${message}`); }
@@ -61,7 +61,20 @@ let fixtureId;
 const responses = [];
 try {
   assert.deepEqual((await a.request('/session')).data, { room: null });
-  let room = await success(a, '', { name: 'Judge Test Alex' }); fixtureId = room.id;
+  // Create an intentional legacy fixture through the retained authenticated RPC.
+  // New HTTP room creation must use Stage 5, while this regression exercises the
+  // saved Stage 4 flow. Never use an admin/service credential to seed the room.
+  const fixtureClient = createClient(databaseUrl, publishableKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
+  clients.push(fixtureClient);
+  const signedIn = await fixtureClient.auth.signInAnonymously();
+  assert.equal(signedIn.error, null, 'Legacy fixture anonymous sign-in must succeed.');
+  assert.ok(signedIn.data.session, 'Legacy fixture needs a verified anonymous session.');
+  a.jar.set('quarrel_access', signedIn.data.session.access_token);
+  a.jar.set('quarrel_refresh', signedIn.data.session.refresh_token);
+  const legacy = await fixtureClient.rpc('create_quarrel_room', { p_name: 'Judge Test Alex' });
+  assert.equal(legacy.error, null, 'The retained legacy room-create RPC must succeed.');
+  let room = await success(a, '/session'); fixtureId = room.id;
+  assert.equal(room.lawyer == null, true, 'Stage 4 fixtures must not be converted into lawyer rooms.');
   room = await success(a, '/theme', { themeId: 'superhero' });
   await success(b, '/join', { code: room.code, name: 'Judge Test Sam' });
   assert.equal((await c.request('/join', { code: room.code, name: 'Judge Test Third' })).status, 409);

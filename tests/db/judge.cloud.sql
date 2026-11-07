@@ -30,7 +30,7 @@ begin
     (v_outsider,'authenticated','authenticated',true,now(),now()),(v_c,'authenticated','authenticated',true,now(),now()),(v_d,'authenticated','authenticated',true,now(),now());
   execute 'set local role authenticated';
   perform set_config('request.jwt.claim.sub',v_a::text,true);
-  v_snapshot:=public.create_quarrel_room('SQL host'); v_room:=(v_snapshot->>'id')::uuid; v_code:=v_snapshot->>'code';
+  v_snapshot:=public.create_quarrel_room('SQL host');perform public.set_quarrel_theme('jungle'); v_room:=(v_snapshot->>'id')::uuid; v_code:=v_snapshot->>'code';
   assert v_snapshot->'judge'='null'::jsonb, 'Unstarted historical room keeps judge disabled';
   perform public.propose_quarrel_debate('Who should wash the dishes?', 'I cooked dinner', 'I washed all week',0);
   perform public.set_quarrel_ready(true);
@@ -150,7 +150,7 @@ begin
   v_denied:=false;begin perform public.begin_quarrel_judge_message('One more',1,5,gen_random_uuid(),v_key);exception when sqlstate 'P0001' then assert sqlerrm='DEBATE_COMPLETE';v_denied:=true;end;assert v_denied,'Completed debate disallows new judge messages';
   -- Separate random fixture: offline catchup reaches preparation, saves fallback
   -- questions on recovery, and only then grants the full first 30-second window.
-  perform set_config('request.jwt.claim.sub',v_c::text,true);v_snapshot:=public.create_quarrel_room('Recovery host');v_room:=(v_snapshot->>'id')::uuid;v_code:=v_snapshot->>'code';
+  perform set_config('request.jwt.claim.sub',v_c::text,true);v_snapshot:=public.create_quarrel_room('Recovery host');perform public.set_quarrel_theme('jungle');v_room:=(v_snapshot->>'id')::uuid;v_code:=v_snapshot->>'code';
   perform public.propose_quarrel_debate('Campus transport','More buses','More walking',0);perform public.set_quarrel_ready(true);
   perform set_config('request.jwt.claim.sub',v_d::text,true);perform public.join_quarrel_room(v_code,'Recovery guest');perform public.approve_quarrel_debate(1);perform public.set_quarrel_ready(true);
   perform set_config('request.jwt.claim.sub',v_c::text,true);perform public.start_quarrel_judged_debate(1,v_key,'demo',2,v_lines);

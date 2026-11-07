@@ -9,6 +9,11 @@ export const jungle: ThemeConfig = {
     "jungle-lion": { id: "jungle-lion", displayName: "Leo", roleLabel: "Lion", assetId: "lion", description: "Leo, a confident golden lion wearing a turquoise neckerchief" },
     "jungle-zebra": { id: "jungle-zebra", displayName: "Zuri", roleLabel: "Zebra", assetId: "zebra", description: "Zuri, an energetic zebra wearing a coral vest" },
   } },
+  lawyers: {
+    A: { id: "jungle-tavi", displayName: "Tavi", assetId: "jungle-lawyer-a", description: "Tavi, an original toucan lawyer with a golden beak, green jacket and case notes", personality: "Bright, curious and encouraging. A spirited advocate who helps their player express a clear point.", dialogueStyle: "Lively, concise phrasing and an occasional light jungle metaphor; preserve the player's actual meaning." },
+    B: { id: "jungle-fern", displayName: "Fern", assetId: "jungle-lawyer-b", description: "Fern, an original capybara lawyer in a turquoise waistcoat carrying a coral casebook", personality: "Calm, good-humored and resourceful. A patient advocate who organizes their player's reasoning.", dialogueStyle: "Warm, grounded sentences with gentle humor, without adding claims or evidence." },
+  },
+  jury: { id: "jungle-canopy-jury", displayName: "The Canopy Jury", assetId: "jungle-jury", description: "Three original jungle jurors, a tortoise, parrot and otter, seated behind a wooden rail", personality: "Attentive, warm and fair-minded. The panel weighs both sides with equal care.", dialogueStyle: "Plain reasoning with restrained jungle imagery; uncertainty stays explicit and never becomes a joke.", neutralityPolicy },
   judge: { id: "jungle-moki", displayName: "Judge Moki", assetId: "lemur", description: "Judge Moki, a ring-tailed lemur in a judicial robe holding a gavel", personality: "Energetic, playful, dramatic and humorous. Expressive without taking sides.", dialogueStyle: "Warm, lively phrasing and light jungle metaphors. Humor never substitutes for evidence.", neutralityPolicy,
     dialogue: { welcome: "Welcome to the jungle! Create a private room or join your friend. I’ll keep your seats warm.", lobby: "Welcome to your private courtroom! Invite your friend, then each choose ready when you’re settled.", ready: "Both players are ready! Agree on your topic and positions, then Player A can open this jungle hearing." },
     debateDialogue: {

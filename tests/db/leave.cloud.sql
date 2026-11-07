@@ -21,7 +21,7 @@ begin
   execute 'set local role authenticated';
   perform set_config('request.headers','{}',true);
   perform set_config('request.jwt.claim.sub',a::text,true);
-  snapshot:=public.create_quarrel_room('Original Alex');old_id:=(snapshot->>'id')::uuid;old_code:=snapshot->>'code';
+  snapshot:=public.create_quarrel_room('Original Alex');perform public.set_quarrel_theme('jungle');old_id:=(snapshot->>'id')::uuid;old_code:=snapshot->>'code';
   perform public.propose_quarrel_debate('Should we grow herbs?','Cooking ingredients matter','Flowers matter',0);perform public.set_quarrel_ready(true);
   perform set_config('request.jwt.claim.sub',b::text,true);
   perform public.join_quarrel_room(old_code,'Original Blair');perform public.approve_quarrel_debate(1);perform public.set_quarrel_ready(true);

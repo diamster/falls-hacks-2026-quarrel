@@ -1,0 +1,11 @@
+.display-preferences {min-height:100vh;}
+.display-preferences[data-pause-animations="true"] *,
+.display-preferences[data-pause-animations="true"] *::before,
+.display-preferences[data-pause-animations="true"] *::after {animation-play-state:paused!important;}
+.display-preferences[data-pause-animations="true"] .speech-text {animation:none!important;opacity:1;translate:none;}
+.display-preferences[data-reduced-motion="true"] *,
+.display-preferences[data-reduced-motion="true"] *::before,
+.display-preferences[data-reduced-motion="true"] *::after {animation:none!important;transition:none!important;scroll-behavior:auto!important;}
+.display-preferences[data-text-size="large"] :is(.speech-text,.debate-record p,.judge-conversation-entry p,.debate-positions dd,.debate-turn-state,.debate-help,.settings-body p,.settings-body label,.settings-body select,.debate-field textarea,.room-field input,[data-readable-text]) {font-size:18px;line-height:1.65;}
+.display-preferences[data-text-size="large"] .speech-text {font-size:22px;line-height:1.3;}
+.display-preferences[data-text-size="large"] .judge-speech {max-height:180px;overflow-y:auto;}

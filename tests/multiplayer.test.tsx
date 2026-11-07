@@ -1,7 +1,7 @@
 import { act, fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
-import { MultiplayerApp, RoomEntry, RoomLobby } from "@/components/multiplayer-app";
+import { LegacyMultiplayerApp as MultiplayerApp, RoomEntry, RoomLobby } from "@/components/multiplayer-app";
 import { roomRequest, useRoomClient } from "@/lib/room-client";
 import type { RoomResponse, RoomSnapshot } from "@/lib/room-types";
 import type { DebateSnapshot } from "@/lib/debate-types";
@@ -55,6 +55,8 @@ function room(overrides: Partial<RoomSnapshot> = {}): RoomSnapshot {
   return {
     id: "920e0108-fbaa-4317-91fd-048f53678d45",
     code: "ABC234",
+    // Legacy rooms retain their stored artwork when the new-room default changes.
+    themeId: "jungle",
     expiresAt: "2030-01-01T00:00:00.000Z",
     you: "A",
     players: [{ slot: "A", name: "Avery", ready: false, connected: true }],
@@ -766,12 +768,12 @@ describe("Stage 2.5 shared theme selection", () => {
     expect(fetchMock.mock.calls.some(([path]) => path === "/api/rooms/theme")).toBe(false);
   });
 
-  it.each(["__proto__", "future-setting"])("renders Jungle for an invalid saved theme %s without changing it through the API", async invalid => {
+  it.each(["__proto__", "future-setting"])("renders Courtroom for an invalid saved theme %s without changing it through the API", async invalid => {
     current = room({ themeId: invalid as ThemeId, themeLocked: false });
     render(<MultiplayerApp />);
     await screen.findByRole("button", { name: "I’m ready" });
-    expect(screen.getByRole("region", { name: getTheme("jungle").environmentLabel })).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: "Jungle theme" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("region", { name: getTheme("courtroom").environmentLabel })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Courtroom theme" })).toHaveAttribute("aria-checked", "true");
     expect(fetchMock.mock.calls.some(([path]) => path === "/api/rooms/theme")).toBe(false);
   });
 

@@ -1,17 +1,20 @@
 /** Real HTTP regression for leaving a saved room and starting fresh.
- * Uses three synthetic anonymous sessions and three retained rooms. No admin
- * credentials, data reset, debate start, or Gemini calls are involved.
+ * Uses three synthetic anonymous sessions and four retained rooms. No admin
+ * credentials, data reset, or forced deadlines are involved. New-room readiness
+ * may reserve one planner job; the complete legacy fixture makes no AI calls.
  * Run only after the leave-room migration is applied to the configured backend:
  * QUARREL_ALLOW_REMOTE_TESTS=true QUARREL_TEST_URL=http://127.0.0.1:3000 \
  * node --env-file=.env.local tests/db/leave.integration.mjs
  */
 import assert from 'node:assert/strict';
+import { createClient } from '@supabase/supabase-js';
 
 const origin = process.env.QUARREL_TEST_URL || 'http://127.0.0.1:3000';
 const databaseUrl = process.env.SUPABASE_URL;
+const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY;
 assert.ok(['localhost', '127.0.0.1'].includes(new URL(origin).hostname), 'Use a local test app.');
-assert.ok(databaseUrl, 'Configure the intended Supabase URL.');
-assert.ok(['localhost', '127.0.0.1'].includes(new URL(databaseUrl).hostname) || process.env.QUARREL_ALLOW_REMOTE_TESTS === 'true', 'Cloud checks require explicit QUARREL_ALLOW_REMOTE_TESTS=true.');
+assert.ok(databaseUrl && publishableKey, 'Configure the intended Supabase URL.');
+assert.ok(['localhost', '127.0.0.1'].includes(new URL(databaseUrl).hostname) || (process.env.QUARREL_ALLOW_REMOTE_TESTS === 'true' && new URL(databaseUrl).hostname === 'exjdvtqsalnkghyohyuh.supabase.co'), 'Cloud checks require explicit QUARREL_ALLOW_REMOTE_TESTS=true.');
 
 function browser() {
   const jar = new Map();
@@ -57,12 +60,11 @@ try {
   const originalSubject = subject(a);
   await success(b, '/join', { code: original.code, name: 'Leave Test Sam' });
   await success(a, '/theme', { themeId: 'detective' }, scope(original.id));
-  const proposed = await success(a, '/debate/propose', {
-    topic: 'Should our shared garden grow herbs or flowers?',
-    positionA: 'Herbs provide ingredients for cooking.',
-    positionB: 'Flowers add color and support pollinators.', revision: 0,
+  let proposed = await success(a, '/lawyer/topic', {
+    topic: 'Should our shared garden grow herbs or flowers?', totalSeconds: 120, revision: 0,
   }, scope(original.id));
-  await success(b, '/debate/approve', { revision: proposed.debate.revision }, scope(original.id));
+  proposed = await success(a, '/lawyer/position', { position: 'Herbs provide ingredients for cooking.', revision: proposed.lawyer.revision }, scope(original.id));
+  await success(b, '/lawyer/position', { position: 'Flowers add color and support pollinators.', revision: proposed.lawyer.revision }, scope(original.id));
   await success(a, '/ready', { ready: true }, scope(original.id));
   await success(b, '/ready', { ready: true }, scope(original.id));
   const beforeLeave = await success(b, '/session');
@@ -88,11 +90,11 @@ try {
   const remaining = await success(b, '/session');
   assert.equal(remaining.id, original.id);
   assert.equal(remaining.themeId, beforeLeave.themeId);
-  assert.equal(remaining.debate.topic, beforeLeave.debate.topic);
-  assert.equal(remaining.debate.positionA, beforeLeave.debate.positionA);
-  assert.equal(remaining.debate.positionB, beforeLeave.debate.positionB);
-  assert.equal(remaining.debate.revision, beforeLeave.debate.revision);
-  assert.deepEqual(remaining.debate.history, beforeLeave.debate.history);
+  assert.equal(remaining.lawyer.topic, beforeLeave.lawyer.topic);
+  assert.equal(remaining.lawyer.positionA, beforeLeave.lawyer.positionA);
+  assert.equal(remaining.lawyer.positionB, beforeLeave.lawyer.positionB);
+  assert.equal(remaining.lawyer.revision, beforeLeave.lawyer.revision);
+  assert.deepEqual(remaining.lawyer.history, beforeLeave.lawyer.history);
   assert.equal(remaining.bothReady, false);
   assert.equal(remaining.players.length, 2, 'Departed slots stay reserved for their original record.');
   assert.deepEqual(remaining.players.map(player => player.name), ['Leave Test Alex', 'Leave Test Sam']);
@@ -110,7 +112,7 @@ try {
   assert.notEqual(fresh.id, original.id);
   assert.notEqual(fresh.code, original.code);
   assert.equal(fresh.you, 'A');
-  assert.equal(fresh.themeId, 'jungle');
+  assert.equal(fresh.themeId, 'courtroom');
   assert.ok(subject(a) === originalSubject, 'Creating another room must reuse the existing identity.');
   assert.equal((await success(a, '/session')).id, fresh.id, 'Refreshing recovers the newly created room.');
   pass('The same browser creates a different room without clearing cookies or allocating another anonymous account.');
@@ -120,7 +122,7 @@ try {
   assert.equal(staleLeave.data.code, 'STALE_ROOM');
   for (const [path, body] of [
     ['/ready', { ready: true }], ['/theme', { themeId: 'courtroom' }], ['/heartbeat', {}],
-    ['/debate/argument', { text: 'An old tab must not submit this in the new room.', revision: 0, turnIndex: 0 }],
+    ['/lawyer/argument', { text: 'An old tab must not submit this in the new room.', revision: 0, subtopic: 1, requestKey: '22222222-2222-4222-8222-222222222222' }],
   ]) {
     const stale = await a.request(path, body, scope(original.id));
     assert.equal(stale.status, 409, `${path} must reject the previous room scope.`);
@@ -128,7 +130,7 @@ try {
   }
   const unchanged = await success(a, '/session');
   assert.equal(unchanged.id, fresh.id);
-  assert.equal(unchanged.themeId, 'jungle');
+  assert.equal(unchanged.themeId, 'courtroom');
   assert.equal(unchanged.players[0].ready, false);
   assert.equal(unchanged.debate?.history?.length ?? 0, 0);
   assert.equal((await success(b, '/session')).id, original.id);
@@ -140,6 +142,8 @@ try {
   assert.equal(joined.id, invitation.id); assert.equal(joined.you, 'B');
   assert.ok(subject(a) === originalSubject, 'Joining after departure must preserve the original identity.');
   assert.equal((await success(a, '/session')).id, invitation.id);
+  const invitationTopic = await success(c, '/lawyer/topic', { topic: 'Should the campus garden grow herbs?', totalSeconds: 120, revision: 0 }, scope(invitation.id));
+  await success(a, '/lawyer/position', { position: 'Flowers would provide more color.', revision: invitationTopic.lawyer.revision }, scope(invitation.id));
   const changed = await success(a, '/ready', { ready: true }, scope(invitation.id));
   assert.equal(changed.players.find(player => player.slot === 'B').ready, true);
   assert.equal((await success(c, '/session')).players.find(player => player.slot === 'B').ready, true);
@@ -147,7 +151,39 @@ try {
   assert.equal((await success(a, '/session')).id, invitation.id);
   pass('The same browser can instead join a new invitation, refresh as Player B, and synchronize readiness normally.');
 
-  console.log(`All ${checks} leave/new-room HTTP integration checks passed. No Gemini calls were made.`);
+  // Keep a complete historical debate regression. Existing members create a
+  // legacy fixture through its authenticated RPC, never via admin SQL.
+  await success(c, '/leave', { roomId: invitation.id }, scope(invitation.id));
+  await success(b, '/leave', { roomId: original.id }, scope(original.id));
+  const legacyClient = createClient(databaseUrl, publishableKey, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    global: { headers: { Authorization: `Bearer ${c.jar.get('quarrel_access')}` } },
+  });
+  const legacyCreated = await legacyClient.rpc('create_quarrel_room', { p_name: 'Historical Host' });
+  assert.equal(legacyCreated.error, null, 'Legacy room fixture uses a verified player JWT.');
+  const legacy = legacyCreated.data; fixtures.push(legacy.id);
+  assert.equal(legacy.lawyer == null, true);
+  await success(b, '/join', { code: legacy.code, name: 'Historical Guest' });
+  let oldRoom = await success(c, '/debate/propose', { topic: 'Should our garden grow herbs or flowers?', positionA: 'Grow herbs for cooking.', positionB: 'Grow flowers for pollinators.', revision: 0 });
+  const revision = oldRoom.debate.revision;
+  await success(b, '/debate/approve', { revision });
+  await success(c, '/ready', { ready: true }); await success(b, '/ready', { ready: true });
+  const started = await legacyClient.rpc('start_quarrel_debate', { p_revision: revision });
+  assert.equal(started.error, null, 'The retained Stage 3 start must work without AI.');
+  for (let turnIndex = 0; turnIndex < 6; turnIndex++) {
+    oldRoom = await success(turnIndex % 2 === 0 ? c : b, '/debate/argument', { text: `Historical argument ${turnIndex + 1}: consider shared garden needs.`, revision, turnIndex });
+  }
+  assert.equal(oldRoom.debate.phase, 'verdict');
+  const history = oldRoom.debate.history;
+  assert.equal(history.length, 6);
+  await success(c, '/leave', { roomId: legacy.id }, scope(legacy.id));
+  const preserved = await success(b, '/session');
+  assert.deepEqual(preserved.debate.history, history);
+  assert.equal(preserved.debate.phase, 'verdict');
+  assert.equal(preserved.lawyer == null, true);
+  assert.equal(preserved.players.find(player => player.slot === 'A').connected, false);
+  pass('Leaving a complete legacy debate preserves all six submitted turns and the peer’s historical access.');
+  console.log(`All ${checks} leave/new-room HTTP integration checks passed. At most one Stage 5 planner job; legacy fixture used no AI.`);
 } finally {
   if (fixtures.length) console.log(`Retained synthetic rooms: ${fixtures.join(', ')}. Expiry is an access rule, not physical deletion.`);
 }

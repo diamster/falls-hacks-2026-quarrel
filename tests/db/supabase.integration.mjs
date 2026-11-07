@@ -36,11 +36,11 @@ try {
   const room = await rpc(a.client, "create_quarrel_room", { p_name: "Integration Lion" });
   assert.match(room.code, /^[A-HJ-NP-Z2-9]{6}$/);
   assert.equal(room.you, "A");
-  assert.equal(room.themeId, "jungle");
+  assert.equal(room.themeId, "courtroom");
   assert.equal(room.themeLocked, false);
   assert.equal(room.mode, "solo");
   assert.equal(room.capacity, 2);
-  pass("Creator receives a six-character code, slot A, default Jungle, and solo capacity two.");
+  pass("Creator receives a six-character code, slot A, default Courtroom, and solo capacity two.");
   await rpc(a.client, "set_quarrel_theme", { p_theme_id: "superhero" });
 
   const race = await Promise.all([b, c].map(p => p.client.rpc("join_quarrel_room", {

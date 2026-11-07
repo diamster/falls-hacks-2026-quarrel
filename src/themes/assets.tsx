@@ -1,6 +1,7 @@
 import type { ComponentType } from "react";
 import { CharacterSprite, JungleBackdrop, JudgeBench } from "@/components/pixel-art";
 import { ThemeBackground, ThemeBench, ThemeCharacterSprite, newCharacterAssetIds } from "./art";
+import { SidekickSprite, sidekickAssetIds } from "./art/sidekicks";
 import type { ThemeId } from "./types";
 
 type AssetProps = { className?: string };
@@ -22,6 +23,7 @@ const legacySprites: Record<string, ComponentType<AssetProps>> = {
   lemur: props => <CharacterSprite character="lemur" {...props}/>,
 };
 const originalAssets = new Set<string>(newCharacterAssetIds);
+const sidekickAssets = new Set<string>(sidekickAssetIds);
 
 export function BackgroundAsset({ assetId, className }: AssetProps & { assetId: ThemeId }) {
   const Background = backgrounds[assetId];
@@ -32,6 +34,7 @@ export function BenchAsset({ assetId }: { assetId: ThemeId }) {
   return <Bench/>;
 }
 export function CharacterAsset({ assetId, label, className }: AssetProps & { assetId: string; label: string }) {
+  if (sidekickAssets.has(assetId)) return <SidekickSprite assetId={assetId} label={label} className={className}/>;
   if (Object.hasOwn(legacySprites, assetId)) {
     const Sprite = legacySprites[assetId];
     return <Sprite className={className}/>;

@@ -85,7 +85,7 @@ describe("session-authorized room API", () => {
   it("creates a room with a trimmed name and protected session cookies", async () => {
     const response = await roomRoute(req("", { name: "  Lion  " }), "create");
     expect(response.status).toBe(200);
-    expect(mock.rpc).toHaveBeenCalledWith("create_quarrel_room", { p_name: "Lion" });
+    expect(mock.rpc).toHaveBeenCalledWith("create_quarrel_lawyer_room", { p_name: "Lion" });
     expect((await response.json()).realtime).toEqual({ url: "http://localhost:54321", key: "public-key", accessToken: "signed-token" });
     for (const item of response.cookies.getAll()) expect(item).toMatchObject({ httpOnly: true, sameSite: "strict", path: "/api/rooms", maxAge: 604800 });
   });
@@ -345,5 +345,77 @@ describe("Stage 4 judge API boundary", () => {
     expect((await roomRoute(req("start",{revision:1},cookie),"start")).status).toBe(404);
     mock.rpc.mockResolvedValueOnce({data:null,error:{message:"ROOM_EXPIRED"}});
     expect((await roomRoute(req("start",{revision:1},cookie),"start")).status).toBe(410);
+  });
+});
+
+describe("Stage 5 verified-player actions", () => {
+  const nonce = "537bc570-0f8d-49f8-bc74-0f0e02e616af";
+  it.each([
+    ["lawyerTopic", { topic: " Campus transit ", totalSeconds: 120, revision: 0 }, "propose_quarrel_lawyer_topic", { p_topic: "Campus transit", p_total_seconds: 120, p_revision: 0 }],
+    ["lawyerPosition", { position: " My own position ", revision: 1 }, "set_quarrel_lawyer_position", { p_position: "My own position", p_revision: 1 }],
+    ["lawyerPlan", { revision: 2, regenerate: true }, "prepare_quarrel_lawyer_plan", { p_revision: 2, p_regenerate: true, p_mode: "demo", p_server_key: "test-only-server-capability-value-1234" }],
+    ["lawyerStart", { revision: 2, planGeneration: 1 }, "start_quarrel_lawyer_debate", { p_revision: 2, p_plan_generation: 1 }],
+    ["lawyerSend", { text: " A reason ", revision: 2, subtopic: 1, requestKey: nonce }, "submit_quarrel_lawyer_argument", { p_text: "A reason", p_revision: 2, p_subtopic: 1, p_request_key: nonce }],
+    ["lawyerConsult", { text: " Private advice ", revision: 2, subtopic: 1, requestKey: nonce }, "consult_quarrel_lawyer", { p_text: "Private advice", p_revision: 2, p_subtopic: 1, p_request_key: nonce }],
+    ["lawyerAdvance", { revision: 2 }, "advance_quarrel_lawyer_debate", { p_revision: 2 }],
+  ] as const)("maps %s to checked RPC arguments", async (action, body, rpc, args) => {
+    expect((await roomRoute(req(action, body, cookie), action)).status).toBe(200);
+    expect(mock.rpc).toHaveBeenCalledWith(rpc, args);
+    expect(mock.signInAnonymously).not.toHaveBeenCalled();
+  });
+  it.each([
+    ["lawyerTopic", "topic", 240, { revision: 1, totalSeconds: 120 }, "propose_quarrel_lawyer_topic", "p_topic"],
+    ["lawyerPosition", "position", 600, { revision: 1 }, "set_quarrel_lawyer_position", "p_position"],
+    ["lawyerSend", "text", 600, { revision: 1, subtopic: 1, requestKey: nonce }, "submit_quarrel_lawyer_argument", "p_text"],
+    ["lawyerConsult", "text", 600, { revision: 1, subtopic: 1, requestKey: nonce }, "consult_quarrel_lawyer", "p_text"],
+  ] as const)("accepts the full Unicode limit for %s while enforcing character and byte bounds", async (action, field, limit, base, rpc, parameter) => {
+    const value = "🌴".repeat(limit);
+    expect((await roomRoute(req(action, { ...base, [field]: value }, cookie), action)).status).toBe(200);
+    expect(mock.rpc).toHaveBeenCalledWith(rpc, expect.objectContaining({ [parameter]: value }));
+    mock.rpc.mockClear();
+    expect((await roomRoute(req(action, { ...base, [field]: `${value}🌴` }, cookie), action)).status).toBe(400);
+    expect((await roomRoute(req(action, { ...base, [field]: "x".repeat(9000) }, cookie), action)).status).toBe(413);
+    expect(mock.rpc).not.toHaveBeenCalled();
+  });
+  it.each([0, 60, 121, 601, "120", null])("rejects unapproved duration %j", async totalSeconds => {
+    expect((await roomRoute(req("topic", { topic: "Topic", totalSeconds, revision: 0 }, cookie), "lawyerTopic")).status).toBe(400);
+    expect(mock.rpc).not.toHaveBeenCalled();
+  });
+  it.each(["slot", "playerId", "positionB", "deadline", "outcome"])("cannot inject %s into own position", async field => {
+    expect((await roomRoute(req("position", { position: "Own position", revision: 1, [field]: "B" }, cookie), "lawyerPosition")).status).toBe(400);
+    expect(mock.rpc).not.toHaveBeenCalled();
+  });
+  it.each(["", "x".repeat(601), "bad\u0000text"])("rejects invalid own positions %j", async position => {
+    expect((await roomRoute(req("position", { position, revision: 1 }, cookie), "lawyerPosition")).status).toBe(400);
+  });
+  it.each([{ subtopic: 0 }, { subtopic: 6 }, { subtopic: "1" }, { text: "x".repeat(601) }, { requestKey: "bad" }, { revision: -1 }])("rejects malformed lawyer send %j", async patch => {
+    expect((await roomRoute(req("argument", { text: "Point", revision: 1, subtopic: 1, requestKey: nonce, ...patch }, cookie), "lawyerSend")).status).toBe(400);
+    expect(mock.rpc).not.toHaveBeenCalled();
+  });
+  it("requires an exact plan generation and a boolean regeneration decision", async () => {
+    expect((await roomRoute(req("start", { revision: 1 }, cookie), "lawyerStart")).status).toBe(409);
+    expect((await roomRoute(req("plan", { revision: 1, regenerate: "yes" }, cookie), "lawyerPlan")).status).toBe(400);
+  });
+  it("reserves planning only after both positions and readiness, then schedules persisted work", async () => {
+    mock.rpc.mockResolvedValueOnce({ data: { ...room, bothReady: true, lawyer: { phase: "setup", confirmedA: true, confirmedB: true, revision: 3 } }, error: null })
+      .mockResolvedValueOnce({ data: { ...room, lawyer: { phase: "planning", needsWork: true } }, error: null });
+    const response = await roomRoute(req("ready", { ready: true }, cookie), "ready");
+    expect(response.status).toBe(200);
+    expect(mock.rpc).toHaveBeenCalledWith("prepare_quarrel_lawyer_plan", expect.objectContaining({ p_revision: 3, p_regenerate: false }));
+    expect(mock.after).toHaveBeenCalledTimes(1);
+    mock.rpc.mockResolvedValue({ data: null, error: null }); await mock.after.mock.calls[0][0]();
+    expect(mock.rpc).toHaveBeenCalledWith("claim_quarrel_lawyer_work", expect.any(Object));
+  });
+  it("keeps a successful readiness response when another request already reserved the plan", async () => {
+    mock.rpc.mockResolvedValueOnce({ data: { ...room, bothReady: true, lawyer: { phase: "setup", confirmedA: true, confirmedB: true, revision: 3 } }, error: null })
+      .mockResolvedValueOnce({ data: null, error: { message: "STALE_REVISION" } });
+    expect((await roomRoute(req("ready", { ready: true }, cookie), "ready")).status).toBe(200);
+    expect(mock.after).not.toHaveBeenCalled();
+  });
+  it("does not expose worker capability in planner responses", async () => {
+    const response = await roomRoute(req("plan", { revision: 1, regenerate: false }, cookie), "lawyerPlan");
+    expect(await response.text()).not.toContain("test-only-server-capability-value-1234");
+    vi.stubEnv("JUDGE_SERVER_SECRET", "");
+    expect((await roomRoute(req("plan", { revision: 1, regenerate: false }, cookie), "lawyerPlan")).status).toBe(503);
   });
 });

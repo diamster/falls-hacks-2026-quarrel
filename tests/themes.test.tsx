@@ -13,14 +13,14 @@ describe("Stage 2.5 theme registry", () => {
       expect(getTheme(theme.id)).toBe(theme);
       expect(theme.displayName).not.toBe("");
     }
-    expect(getTheme()).toBe(getTheme("jungle"));
+    expect(getTheme()).toBe(getTheme("courtroom"));
   });
 
   it.each([undefined, null, "", "future-theme", "JUNGLE", "__proto__", "constructor", "toString", 4, {}, []])(
     "falls back safely for unrecognized theme value %j",
     value => {
       expect(isThemeId(value)).toBe(false);
-      expect(getTheme(value)).toBe(getTheme("jungle"));
+      expect(getTheme(value)).toBe(getTheme("courtroom"));
     },
   );
 

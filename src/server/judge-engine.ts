@@ -3,6 +3,8 @@ import "server-only";
 import { getTheme, neutralityPolicy } from "@/themes";
 import type { JudgeContext, JudgeJob, JudgeReaction, JudgeResult } from "@/lib/judge-types";
 import type { PlayerSlot } from "@/lib/room-types";
+import type { LawyerJob, LawyerResult } from "@/lib/lawyer-types";
+import { deterministicLawyerResult, lawyerContext, lawyerInstructions, lawyerResponseSchema, lawyerSafetyRedirect, validateLawyerResult } from "./lawyer-policy";
 
 const reactions: readonly JudgeReaction[] = ["speaking", "questioning", "surprised", "listening"];
 const maxResponseCharacters = 900;
@@ -179,5 +181,45 @@ export async function generateJudgeResult(job: JudgeJob): Promise<JudgeResult> {
   } catch {
     // Never surface API keys, provider errors, response IDs or raw model output.
     return deterministicJudgeResult(job, "fallback");
+  } finally { clearTimeout(timeout); }
+}
+
+/** Stage 5 role strategies share the existing server-only Gemini engine. */
+export async function generateLawyerResult(job: LawyerJob): Promise<LawyerResult> {
+  const key = process.env.GEMINI_API_KEY?.trim();
+  if (job.mode === "demo" || process.env.JUDGE_AI_MODE === "demo") return deterministicLawyerResult(job);
+  if (!key || lawyerSafetyRedirect(job)) return deterministicLawyerResult(job, "fallback");
+  const model = process.env.GEMINI_MODEL?.trim() || "gemini-3.6-flash";
+  if (!/^[a-z0-9][a-z0-9._-]{0,100}$/i.test(model)) return deterministicLawyerResult(job, "fallback");
+  const context = JSON.stringify({ task: job.kind, player: job.slot, rawArgument: job.playerText, untrustedRoomContext: lawyerContext(job) });
+  // Include the complete bounded official record for jury review; never silently
+  // truncate evidence or substitute private consultations to fit a request.
+  if (context.length > 240_000) return deterministicLawyerResult(job, "fallback");
+  const abort = new AbortController();
+  const timeout = setTimeout(() => abort.abort(), timeoutMs());
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+      method: "POST", signal: abort.signal, cache: "no-store",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: lawyerInstructions(job) }] },
+        contents: [{ role: "user", parts: [{ text: context }] }],
+        generationConfig: { candidateCount: 1, maxOutputTokens: job.kind === "jury" ? 4096 : 2000, responseMimeType: "application/json", responseJsonSchema: lawyerResponseSchema(job),
+          ...(model === "gemini-3.6-flash" ? { thinkingConfig: { thinkingLevel: "MINIMAL", includeThoughts: false } } : {}) },
+      }),
+    });
+    if (!response.ok) return deterministicLawyerResult(job, "fallback");
+    const body = await response.text();
+    if (body.length > 65_536) return deterministicLawyerResult(job, "fallback");
+    const payload: unknown = JSON.parse(body);
+    if (!record(payload) || (record(payload.promptFeedback) && payload.promptFeedback.blockReason) || !Array.isArray(payload.candidates) || payload.candidates.length !== 1) return deterministicLawyerResult(job, "fallback");
+    const candidate = payload.candidates[0];
+    if (!record(candidate) || candidate.finishReason !== "STOP" || !record(candidate.content) || !Array.isArray(candidate.content.parts)) return deterministicLawyerResult(job, "fallback");
+    const parts = candidate.content.parts;
+    if (parts.some(part => !record(part) || part.functionCall || part.executableCode || part.inlineData)) return deterministicLawyerResult(job, "fallback");
+    const output = parts.filter(part => typeof part.text === "string" && !part.thought).map(part => part.text).join("");
+    return validateLawyerResult(JSON.parse(output), job) ?? deterministicLawyerResult(job, "fallback");
+  } catch {
+    return deterministicLawyerResult(job, "fallback");
   } finally { clearTimeout(timeout); }
 }

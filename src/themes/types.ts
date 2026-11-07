@@ -16,6 +16,16 @@ export interface ThemePalette {
   border: string; accent: string; accentInk: string; secondary: string; header: string;
 }
 
+export interface SidekickCharacterConfig {
+  id: string;
+  displayName: string;
+  assetId: string;
+  description: string;
+  /** Voice only. The shared AI engine owns factual and evaluation constraints. */
+  personality: string;
+  dialogueStyle: string;
+}
+
 export interface ThemeConfig {
   id: ThemeId;
   displayName: string;
@@ -27,6 +37,8 @@ export interface ThemeConfig {
     defaults: Readonly<Record<CharacterPosition, string>>;
     characters: Readonly<Record<string, PlayerCharacterConfig>>;
   };
+  lawyers: Readonly<Record<CharacterPosition, SidekickCharacterConfig>>;
+  jury: SidekickCharacterConfig & { neutralityPolicy: typeof neutralityPolicy };
   judge: {
     id: string; displayName: string; assetId: string; description: string;
     personality: string; dialogueStyle: string;

@@ -1,4 +1,4 @@
-name: quarrel.io Stage 1–4 checks
+name: quarrel.io Stage 1–5 checks
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  stages-1-through-4:
+  stages-1-through-5:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
@@ -47,6 +47,10 @@ jobs:
         env:
           QUARREL_TEST_URL: http://127.0.0.1:3001
         run: npm run test:leave
+      - name: Verify Stage 5 lawyer flow, clocks and private consultations
+        env:
+          QUARREL_TEST_URL: http://127.0.0.1:3001
+        run: npm run test:lawyer
       - name: Stop local Supabase
         if: always()
         run: npm run supabase:stop > /tmp/quarrel-supabase-stop.log 2>&1

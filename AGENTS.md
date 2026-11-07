@@ -4,15 +4,19 @@ This is the standalone quarrel.io repository: `diamster/falls-hacks-2026-quarrel
 
 ## Stage 5 (current) — Lawyer Sidekick Debate
 
-Stage 5 is authorized on `quarrel-stage-5`. The full specification is `docs/stage-5-handoff.md`; read it first. It is the explicit user instruction that the Stage 4 rules below require, and where it conflicts with them, the handoff wins:
+Stage 5 is authorized on `quarrel-stage-5`. Read `docs/stage-5-handoff.md` first for historical context, then **`docs/stage-5-decisions.md`**, which records the user's updated brief and approved decisions. The updated brief and decisions take precedence over conflicting handoff text and Stage 4 rules below:
 
 - Replace the opening/rebuttal/question phases with planner-generated subtopics, per-subtopic chess clocks, AI lawyer rewrites, judge summaries per subtopic and a final jury verdict.
 - Remove Ask Judge chat, clarification questions, the concealed opening reveal and the placeholder verdict from the playable flow. Keep their existing tables and Cloud data; never drop, reset or replay.
 - Only the jury job may name an outcome (side A, side B or split). Lawyer, judge and planner jobs still must not.
 - Objections are out of scope; do not implement the earlier "Stage 5 — Interactive Objection System" brief.
-- The provisional defaults in section 3 of the handoff are unconfirmed; ask the user before deviating from them.
+- **D1–D12 are approved**, with the clarifications in `docs/stage-5-decisions.md`. Do not request the same approval again; ask before changing an approved decision. New Cloud migration review remains a separate requirement.
+- Each player writes and confirms only their own position. The host proposes the topic and 2/4/6/10-minute **per-player** duration. Plan only after both positions and both Ready confirmations; show the plan, allow one host regeneration, and require explicit Start against the current revision and plan generation.
+- Public lawyer presentations and private lawyer consultations are distinct actions. Official drafts are hidden from the opponent but available to their author and the judge/jury. Private consultations remain owner-only and are **never judge/jury evidence**. Public presentation completion passes the clock to the opponent if they have time; private consultation completion resumes the same player's remaining clock. Both clocks pause during AI processing.
+- Keep the approved per-subtopic limits: 12 official presentations and 2 private consultations per player, each input at most 600 characters. Caps reset at the next subtopic and never extend or prematurely end remaining time. Lawyer output is at most 1.5× input, capped at 900 characters. Failed public generation uses unchanged submitted text labelled unedited fallback.
+- New rooms default to Courtroom; preserve existing room theme IDs and all original art. Theme selection belongs in Settings, host-only before Start. Keep personal display preferences local to the browser and separate from room/gameplay settings. The public history belongs beside the arena on desktop, collapsible on mobile; private consultations remain separate.
 
-All other rules below (server-authoritative state, `auth.uid()` identity, RLS, no service role, server-only Gemini key and judge capability, Cloud migration review, testing and documentation) still apply. Record Stage 5 results in `docs/stage-5-testing.md`.
+All other rules below (server-authoritative state, `auth.uid()` identity, RLS, no service role, server-only Gemini key and judge capability, Cloud migration review, testing and documentation) still apply. Stage 4 phase/chat-specific requirements are historical compatibility rules, not instructions to reintroduce those controls to the Stage 5 app. Preserve legacy records as read-only archives and `/preview` as the local art preview. Use the new lawyer start/worker APIs for current debates; legacy judged-start APIs are not the current start path. Run the Stage 5 lawyer integration checks as well as relevant room/leave and legacy regressions, and record actual results in `docs/stage-5-testing.md`. Push only `quarrel-stage-5`; no deployment or merge to `main` is included.
 
 ## Stage 4 rules (still apply unless superseded above)
 

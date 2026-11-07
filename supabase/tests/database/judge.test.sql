@@ -24,6 +24,8 @@ grant select,insert,update on judge_test to authenticated;
 set local role authenticated;
 set local request.jwt.claim.sub='a4444444-4444-4444-8444-444444444444';
 insert into judge_test(snapshot) values(public.create_quarrel_room('Judge host'));
+-- Preserve this legacy Jungle judge fixture independently of new-room defaults.
+select public.set_quarrel_theme('jungle');
 select is(public.get_quarrel_room()->'judge','null'::jsonb,'New room still starts in lobby without judge');
 select public.propose_quarrel_debate('Who should wash dishes?','I cooked','I washed all week',0);
 select public.set_quarrel_ready(true);

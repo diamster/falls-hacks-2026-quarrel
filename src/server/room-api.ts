@@ -1,9 +1,10 @@
 import { createClient, type Session, type SupabaseClient } from "@supabase/supabase-js";
 import { after, NextRequest, NextResponse } from "next/server";
 import { getTheme, isThemeId } from "@/themes";
-import { judgeServerConfig, processJudgeWork } from "./judge-worker";
+import { judgeServerConfig, processJudgeWork, processLawyerWork } from "./judge-worker";
 
-type Action = "session" | "create" | "join" | "leave" | "ready" | "heartbeat" | "theme" | "propose" | "approve" | "changes" | "start" | "argument" | "advance" | "judge";
+type Action = "session" | "create" | "join" | "leave" | "ready" | "heartbeat" | "theme" | "propose" | "approve" | "changes" | "start" | "argument" | "advance" | "judge"
+  | "lawyerTopic" | "lawyerPosition" | "lawyerPlan" | "lawyerStart" | "lawyerSend" | "lawyerConsult" | "lawyerAdvance";
 const roomIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const cookieNames = ["quarrel_access", "quarrel_refresh"] as const;
 const messages: Record<string, [number, string]> = {
@@ -57,6 +58,23 @@ const messages: Record<string, [number, string]> = {
   INVALID_JUDGE_REQUEST: [400, "This judge message needs a valid request ID."],
   JUDGE_REQUEST_CONFLICT: [409, "That request ID belongs to a different message. Send a new message."],
   JUDGE_PREPARING_QUESTIONS: [409, "The judge is preparing both questions. Your answer timer has not started."],
+  INVALID_DURATION: [400, "Choose 2, 4, 6 or 10 minutes per player."],
+  INVALID_LAWYER_POSITION: [400, "Write your own position in 1 to 600 characters."],
+  INVALID_LAWYER_MESSAGE: [400, "Write a message in 1 to 600 characters."],
+  LAWYER_FORMAT_REQUIRED: [409, "Create a new room to use the lawyer debate flow."],
+  LEGACY_ACTION_DISABLED: [409, "This room uses the lawyer debate flow. Refresh to use its current controls."],
+  LAWYER_BUSY: [409, "Your lawyer is working. Neither clock is running."],
+  MESSAGE_LIMIT_REACHED: [429, "You have used all 12 official submissions for this subtopic. The clock continues until time expires."],
+  CONSULTATION_LIMIT_REACHED: [429, "You have used both private consultations for this subtopic."],
+  PLAN_NOT_READY: [409, "Wait for the shared subtopic plan before starting."],
+  PLAN_REGENERATION_USED: [409, "The plan has already been regenerated once."],
+  STALE_PLAN: [409, "The plan changed. Review the updated subtopics before starting."],
+  REQUEST_CONFLICT: [409, "This request ID already belongs to another message. Submit a new request."],
+  LAWYER_UNAVAILABLE: [409, "Create a new room to use the lawyer debate flow."],
+  LAWYER_FLOW_REQUIRED: [409, "This room uses personal lawyers. Refresh to use its current controls."],
+  LAWYER_REQUEST_CONFLICT: [409, "This request ID already belongs to another message. Submit a new request."],
+  LAWYER_LIMIT_REACHED: [429, "You have used this subtopic’s allowance for that action. Your remaining writing time is unchanged."],
+  INVALID_LAWYER_CONFIG: [503, "The lawyer service needs its server configuration. Your room is saved."],
 };
 
 class RoomError extends Error {
@@ -122,7 +140,10 @@ async function input(request: NextRequest, action: Action): Promise<Record<strin
   const expectedOrigin = `${request.nextUrl.protocol}//${request.headers.get("host") || request.nextUrl.host}`;
   if (request.headers.get("origin") !== expectedOrigin) throw new RoomError(403, "This request must come from the room page.");
   if (!request.headers.get("content-type")?.startsWith("application/json")) throw new RoomError(415, "Send room requests as JSON.");
-  const maxBytes = action === "argument" ? 16_384 : action === "judge" ? 8192 : action === "propose" ? 4096 : action === "changes" ? 2048 : 1024;
+  // The character limits below count Unicode code points, not UTF-8 bytes.
+  // Keep enough bounded transport space for a full multilingual lawyer message.
+  const lawyerTextAction = ["lawyerTopic", "lawyerPosition", "lawyerSend", "lawyerConsult"].includes(action);
+  const maxBytes = action === "argument" ? 16_384 : action === "judge" || lawyerTextAction ? 8192 : action === "propose" ? 4096 : action === "changes" ? 2048 : 1024;
   if (Number(request.headers.get("content-length")) > maxBytes) throw new RoomError(413, "The room request is too large.");
   const reader = request.body?.getReader();
   const chunks: Uint8Array[] = [];
@@ -152,6 +173,9 @@ async function input(request: NextRequest, action: Action): Promise<Record<strin
     propose: ["topic", "positionA", "positionB", "revision"], approve: ["revision"],
     changes: ["message", "revision"], start: ["revision"], argument: ["text", "revision", "turnIndex"], advance: ["revision", "turnIndex"],
     judge: ["text", "revision", "turnIndex", "requestKey"],
+    lawyerTopic: ["topic", "totalSeconds", "revision"], lawyerPosition: ["position", "revision"],
+    lawyerPlan: ["revision", "regenerate"], lawyerStart: ["revision", "planGeneration"], lawyerAdvance: ["revision"],
+    lawyerSend: ["text", "revision", "subtopic", "requestKey"], lawyerConsult: ["text", "revision", "subtopic", "requestKey"],
   }[action];
   if (!body || Array.isArray(body) || typeof body !== "object" || Object.keys(body).some(key => !fields.includes(key))) {
     throw new RoomError(400, "Unexpected room request fields. Player identity comes from your session.");
@@ -167,7 +191,7 @@ async function input(request: NextRequest, action: Action): Promise<Record<strin
   if (action === "ready" && typeof body.ready !== "boolean") failDatabase("INVALID_READY");
   if (action === "leave" && (typeof body.roomId !== "string" || !roomIdPattern.test(body.roomId))) failDatabase("INVALID_ROOM");
   if (action === "theme" && !isThemeId(body.themeId)) failDatabase("INVALID_THEME");
-  if (["propose", "approve", "changes", "start", "argument", "advance", "judge"].includes(action)) {
+  if (["propose", "approve", "changes", "start", "argument", "advance", "judge"].includes(action) || action.startsWith("lawyer")) {
     if (!Number.isInteger(body.revision) || (body.revision as number) < 0 || (body.revision as number) > 2_147_483_646) failDatabase("INVALID_REVISION");
   }
   function boundedText(field: string, max: number, error: string, multiline = false) {
@@ -190,6 +214,18 @@ async function input(request: NextRequest, action: Action): Promise<Record<strin
   }
   if (action === "argument" || action === "advance" || action === "judge") {
     if (!Number.isInteger(body.turnIndex) || (body.turnIndex as number) < 0 || (body.turnIndex as number) > 5) failDatabase("INVALID_TURN");
+  }
+  if (action === "lawyerTopic") {
+    boundedText("topic", 240, "INVALID_TOPIC");
+    if (![120, 240, 360, 600].includes(Number(body.totalSeconds)) || typeof body.totalSeconds !== "number") failDatabase("INVALID_DURATION");
+  }
+  if (action === "lawyerPosition") boundedText("position", 600, "INVALID_LAWYER_POSITION", true);
+  if (action === "lawyerPlan" && typeof body.regenerate !== "boolean") throw new RoomError(400, "Choose whether to regenerate the plan.");
+  if (action === "lawyerStart" && ![0, 1].includes(body.planGeneration as number)) failDatabase("STALE_PLAN");
+  if (action === "lawyerSend" || action === "lawyerConsult") {
+    boundedText("text", 600, "INVALID_LAWYER_MESSAGE", true);
+    if (!Number.isInteger(body.subtopic) || Number(body.subtopic) < 1 || Number(body.subtopic) > 5) failDatabase("INVALID_TURN");
+    if (typeof body.requestKey !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.requestKey)) failDatabase("INVALID_REQUEST_KEY");
   }
   return body;
 }
@@ -217,10 +253,10 @@ export async function roomRoute(request: NextRequest, action: Action) {
     } else {
       renewed = auth.session;
       const judge = judgeServerConfig();
-      if ((action === "start" || action === "judge") && !judge.serverKey) failDatabase("JUDGE_NOT_CONFIGURED");
+      if (["start", "judge", "lawyerPlan"].includes(action) && !judge.serverKey) failDatabase("JUDGE_NOT_CONFIGURED");
       const rpc: Record<Action, [string, Record<string, unknown>]> = {
         session: ["get_quarrel_room", {}],
-        create: ["create_quarrel_room", { p_name: body.name }],
+        create: ["create_quarrel_lawyer_room", { p_name: body.name }],
         join: ["join_quarrel_room", { p_name: body.name, p_code: body.code }],
         leave: ["leave_quarrel_room", { p_expected_room_id: body.roomId }],
         ready: ["set_quarrel_ready", { p_ready: body.ready }],
@@ -233,6 +269,13 @@ export async function roomRoute(request: NextRequest, action: Action) {
         argument: ["submit_quarrel_argument", { p_text: body.text, p_revision: body.revision, p_turn_index: body.turnIndex }],
         advance: ["advance_quarrel_debate", { p_revision: body.revision, p_turn_index: body.turnIndex }],
         judge: ["begin_quarrel_judge_message", { p_text: body.text, p_revision: body.revision, p_turn_index: body.turnIndex, p_request_key: body.requestKey, p_server_key: judge.serverKey }],
+        lawyerTopic: ["propose_quarrel_lawyer_topic", { p_topic: body.topic, p_total_seconds: body.totalSeconds, p_revision: body.revision }],
+        lawyerPosition: ["set_quarrel_lawyer_position", { p_position: body.position, p_revision: body.revision }],
+        lawyerPlan: ["prepare_quarrel_lawyer_plan", { p_revision: body.revision, p_regenerate: body.regenerate, p_mode: judge.mode, p_server_key: judge.serverKey }],
+        lawyerStart: ["start_quarrel_lawyer_debate", { p_revision: body.revision, p_plan_generation: body.planGeneration }],
+        lawyerSend: ["submit_quarrel_lawyer_argument", { p_text: body.text, p_revision: body.revision, p_subtopic: body.subtopic, p_request_key: body.requestKey }],
+        lawyerConsult: ["consult_quarrel_lawyer", { p_text: body.text, p_revision: body.revision, p_subtopic: body.subtopic, p_request_key: body.requestKey }],
+        lawyerAdvance: ["advance_quarrel_lawyer_debate", { p_revision: body.revision }],
       };
       const [name, params] = rpc[action];
       if (action === "start") {
@@ -242,8 +285,15 @@ export async function roomRoute(request: NextRequest, action: Action) {
         const theme = getTheme(current.data.themeId);
         params.p_lines = { ...theme.judge.debateDialogue, themeId: theme.id };
       }
-      const { data, error } = await (auth.db as SupabaseClient).rpc(name, params);
+      let { data, error } = await (auth.db as SupabaseClient).rpc(name, params);
       if (error) failDatabase(error.message);
+      if (data?.lawyer?.phase === "setup" && data.bothReady && data.lawyer.confirmedA && data.lawyer.confirmedB && judge.serverKey) {
+        // A database reservation makes automatic planning once-per-revision,
+        // even if both players' readiness and heartbeats arrive together.
+        const plan = await auth.db.rpc("prepare_quarrel_lawyer_plan", { p_revision: data.lawyer.revision, p_regenerate: false, p_mode: judge.mode, p_server_key: judge.serverKey });
+        if (!plan.error && plan.data) data = plan.data;
+      }
+      if (data?.lawyer?.needsWork && judge.serverKey) after(() => processLawyerWork(auth.db, judge.serverKey).then(() => {}));
       if (data?.judge?.needsWork && judge.serverKey) {
         // The response exposes only the persisted pending job. Work survives the
         // response lifecycle; a database claim prevents refreshes duplicating it.
