@@ -56,10 +56,50 @@ Keep Supabase's Auth protections enabled. Anonymous creation is server-side, so 
 
 ## Status
 
-The Vercel project `falls-hacks-2026-quarrel` is created in team `diamsterac-7087`, with Next.js, Node 22.x and Standard Deployment Protection (the production domain is public; preview/generated deployment URLs remain protected). Production credentials and deployment are still pending.
+Deployed and verified on **2026-11-07**:
 
-Vercel's GitHub login connection is not configured, so the initial deployment will use a source snapshot of the committed Stage 4 branch. Automatic deployments on push are not enabled. Connect GitHub in Vercel later and select `quarrel-stage-4` as the production branch before enabling them.
+- **URL:** [falls-hacks-2026-quarrel.vercel.app](https://falls-hacks-2026-quarrel.vercel.app)
+- **Target / status:** Production / READY
+- **Source commit:** `391c5109213848fc4d078f1271cbcb874356b4b4` on `quarrel-stage-4`
+- **Framework / runtime:** Next.js / Node 22.x
+- **Build duration:** approximately 49 seconds
+- **Deployment:** `dpl_EYnaxa8eD2FdwX3iM5gUgomTcqKb`
+- **Project / team:** `falls-hacks-2026-quarrel` / `diamsterac-7087`
 
-Local verification: production build and TypeScript passed with the route-duration settings. The full local suite passed 376 tests but hit one existing initial-recovery timeout on the busy machine; 3 live-provider tests were intentionally skipped. The previous exact application implementation passed all 377 tests and 255 database assertions on GitHub. The deployment configuration commit also runs the clean CI suite. Hosted behavior is not yet claimed as tested.
+The eight listed environment settings were copied to Production with explicit user approval. The Gemini credential, server capability and Supabase publishable key use sensitive storage. No secret values are in source or this report. Standard Deployment Protection keeps preview/generated deployment URLs protected while the stable production domain is public.
+
+Vercel's GitHub login connection is not configured, so this release uses an exact 66-file source snapshot of the committed Stage 4 application, uploaded through the Vercel connector. Automatic deployments on push are **not enabled**. Connect GitHub in Vercel later and select `quarrel-stage-4` as the production branch before enabling them. Subsequent documentation-only commits do not change this deployed source snapshot.
+
+## Verification results
+
+The story tested was: open the public invitation → create/join authenticated room seats → synchronize through the existing Supabase Cloud project → complete timed rounds and shared Gemini interactions → return to the start screen.
+
+| Boundary | Result | Evidence |
+| --- | --- | --- |
+| Public website | Passed | HTTPS page and invite served without a Vercel account; desktop browser displayed the existing artwork. |
+| Browser → server | Passed | Created a room, generated its public invitation, switched theme and recovered the same room after reload. |
+| Server → Supabase Cloud | Passed | Three isolated cookie sessions tested create/join, full/invalid rooms, authorization, recovery and leave/create. Cookies remained Secure, HttpOnly, SameSite=Strict and scoped to the room API; private responses were not cached. |
+| Realtime → clients | Passed | Actual database events delivered all four theme changes and readiness. The browser displayed the second session's name, Connected and Ready without a reload. |
+| Server → Gemini → saved history | Passed | Exactly two live generation jobs returned `source: ai`: one direct reply and one pair of distinct contextual clarification questions. The shared reply completed through Vercel's post-response work; retry reused the saved reply. |
+| Debate completion | Passed | Six official turns completed; asking the judge did not submit an argument, change the phase or extend the deadline. Both question turns retained the full 30 seconds and both sessions saw the same history and placeholder verdict. |
+| Return to start | Passed | Same-browser leave/create and stale-tab protection passed. The browser's synthetic test room was left and the public Create/Join screen restored for handoff. |
+
+The hosted HTTP/Realtime script passed **5 grouped checks**. These used isolated cookie sessions, not two separately automated browser engines. The additional desktop browser inspection had **zero captured console warnings or errors**. No mobile-device or cross-browser-engine run was repeated for this deployment; the existing responsive UI was unchanged. Synthetic fixtures were retained under normal room expiry; no administrative deletion, reset or migration was performed.
+
+![Public invitation with both players connected and guest ready](screenshots/vercel-public-invite.png)
+
+[GitHub verification run 42412027518](https://github.com/diamster/falls-hacks-2026-quarrel/actions/runs/42412027518) passed for the deployed commit:
+
+- Application checks: **377 passed, 3 intentionally skipped** live-provider tests; production build and TypeScript passed.
+- Database: **255 assertions passed** on an isolated CI database.
+- Application API checks passed; **15** Supabase integration, **8** Stage 3, **7** Stage 4 demo-judge and **6** leave/new-room checks passed.
+
+Local verification also passed the production build and TypeScript. The full local suite passed 376 tests but hit one initial-recovery timeout on the busy machine; the same deployed commit passed all 377 applicable tests in clean CI. The local timeout was not used to weaken the test or alter application behavior.
+
+## Post-deploy observability
+
+- **Error scan:** No error/fatal runtime logs for this production deployment in the 20-minute window ending at 20:46 UTC on 2026-11-07, including the hosted tests.
+- **Drains:** None configured for this project.
+- **Monitoring:** Vercel runtime logs are available; no installed monitoring integrations or persistent log drains were found. An external error tracker or log drain can be configured separately; this deployment did not add a monitoring subscription.
 
 References: [Next.js on Vercel](https://vercel.com/docs/frameworks/full-stack/nextjs), [function duration](https://vercel.com/docs/functions/configuring-functions/duration), [environment variables](https://vercel.com/docs/environment-variables).

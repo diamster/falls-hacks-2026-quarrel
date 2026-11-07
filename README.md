@@ -6,7 +6,11 @@ The original Stage 1 artwork and local interaction preview are preserved at `/pr
 
 ## Public multiplayer on Vercel
 
+**Live Stage 4:** [falls-hacks-2026-quarrel.vercel.app](https://falls-hacks-2026-quarrel.vercel.app). Create a new room there and send its invitation to a friend using another browser or device.
+
 See [Vercel deployment and verification](docs/vercel-deployment.md). Vercel hosts the website and server routes; the existing Supabase Cloud project continues to store rooms and deliver live updates. Both players must open the same public deployment URL. Invitations created there automatically use that URL instead of `localhost`.
+
+This first release uses a committed source snapshot. Automatic deployment on GitHub push is not enabled until GitHub is connected to the Vercel project.
 
 ## Run locally with Supabase Cloud
 
