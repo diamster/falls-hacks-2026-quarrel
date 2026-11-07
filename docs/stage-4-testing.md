@@ -48,7 +48,9 @@ Database-generated message IDs, unique per-player request nonces and atomic clai
 | Complete manual browser debate | Jungle debate completed with all 6 submitted turns; guest used the 390px layout and refreshed during their question turn |
 | Manual timeout recovery | Separate Superhero room completed through genuine expiries when no answer was submitted; no fabricated arguments appeared |
 | Browser console | No warnings/errors in the final fresh Jungle sessions. Earlier Superhero sessions had nonfatal Supabase duplicate-client warnings during development hot reload; no critical errors |
-| Database pgTAP / GitHub Actions | Final remote result recorded below once the branch run completes |
+| Database pgTAP / GitHub Actions | All 219 assertions across four files passed, including the 42 new judge assertions; all workflow steps succeeded |
+
+[GitHub Actions run 42406628881](https://github.com/diamster/falls-hacks-2026-quarrel/actions/runs/42406628881) passed for implementation commit `847f31985c9d099219c33186beb0802fe4f190ab`. It independently ran 363 application tests, the production build, 219 database assertions, the API suite, all 15 room/theme checks, all 8 debate checks and all 7 judge checks. Its four judge jobs used deterministic **demo** responses without provider credentials. The final report-only commit does not change the tested application, configuration helper, workflow or migrations.
 
 The Cloud HTTP judge suite made four jobs: sources **AI, AI, fallback, AI**. A separate smoke-test diagnostic confirmed an intermittent Gemini **HTTP 503**. The final three live smoke calls returned HTTP 200 and valid structured responses. Browser testing also observed a clearly labeled fallback, then subsequent successful Gemini replies. Provider availability is not guaranteed; fallback behavior was tested rather than hidden.
 
