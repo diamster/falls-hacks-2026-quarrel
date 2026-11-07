@@ -2,7 +2,7 @@
 
 **Recorded:** 2026-11-07 · **Branch:** `quarrel-stage-5` · **Repository:** `diamster/falls-hacks-2026-quarrel`
 
-The user approved D1–D12 during the Stage 5 implementation discussion, including the clarifications below. These are approved product decisions, not open questions. Do not ask for the same approval again; request approval before changing a decision. The requirement to show a proposed Cloud migration before applying it remains separate and still applies.
+The user approved D1–D12 during the Stage 5 implementation discussion, as recorded in the D1–D12 table below. These are approved product decisions, not open questions. Do not ask for the same approval again; request approval before changing a decision. The requirement to show a proposed Cloud migration before applying it remains separate and still applies.
 
 Read [the original handoff](stage-5-handoff.md) first for context, then this document. The user's updated Stage 5 brief and this record take precedence over conflicting historical handoff text or Stage 1–4 behavior. In particular, the host no longer writes both positions, direct Ask Judge and clarification rounds are removed from the playable flow, Courtroom is the new-room default, and theme selection lives in Settings.
 
@@ -23,7 +23,7 @@ Read [the original handoff](stage-5-handoff.md) first for context, then this doc
 | **D11 — quotas** | Each player has at most **12 official presentations per subtopic**. The count resets for the next subtopic. Reaching the cap neither extends nor ends their remaining writing clock; the subtopic still ends only when both clocks reach zero. |
 | **D12 — development and failures** | Preserve a clearly labelled deterministic **demo/fallback** path for plans, presentations, summaries and verdicts when Gemini is absent or unavailable. The same structured contracts and authorization apply. A fallback verdict does not claim a live AI evaluation; the implementation preserves the record and returns split/inconclusive. |
 
-## Updated flow and additional approved clarifications
+## Updated flow and implementation details
 
 1. The host creates a private room and enters the main topic and per-player total duration. Each player writes and confirms **only their own position**, at most 600 characters. Both positions are visible before starting. A player cannot supply another identity/slot to edit the other position.
 2. Both players choose Ready. The planner creates a shared, timed plan. The host can regenerate once and explicitly start the displayed plan. A stale revision or plan generation cannot start a replaced plan.
@@ -31,6 +31,8 @@ Read [the original handoff](stage-5-handoff.md) first for context, then this doc
 4. **Ask my lawyer privately** is separate: only the active player can consult their own lawyer, at most **two consultations per player per subtopic**, with a **600-character input**. Processing pauses both clocks and resumes the **same player's** remaining time afterward. It does not publish an argument or hand the turn to the opponent. Consultation quotas reset by subtopic and do not add writing time.
 5. A subtopic finishes only when both writing clocks reach zero. The neutral judge summarizes that subtopic for both players. The current implementation saves and displays the summary for a short server-controlled interval before proceeding.
 6. After the final summary, the jury reviews the complete official record and all summaries. Private consultations never enter that evidence. Only the jury may return an outcome; the planner, lawyers and judge may not announce a winner.
+
+The two-private-consultation cap and short summary display interval are implementation safeguards, not additional D1–D12 approvals. They are documented separately from the user-approved official-message quota. No Settings control changes these limits.
 
 ## Presentation and Settings
 

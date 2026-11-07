@@ -2,7 +2,7 @@
 
 **Date:** 2026-11-07 · **Branch:** `quarrel-stage-5` · **Cloud project:** `exjdvtqsalnkghyohyuh`
 
-**Cloud, HTTP, component and browser checks are complete as recorded below. The final coverage/build check and Webpack development-browser recheck passed.** The implementation follows [the approved Stage 5 decisions](stage-5-decisions.md); it does not restore the obsolete objection or direct Ask Judge design.
+**Cloud, HTTP, component, browser and GitHub CI checks passed as recorded below. The final coverage/build check and Webpack development-browser recheck passed.** The implementation follows [the approved Stage 5 decisions](stage-5-decisions.md); it does not restore the obsolete objection or direct Ask Judge design. Live-provider limitations are reported separately and are not counted as passing live-AI tests.
 
 ## Cloud migration and database checks
 
@@ -74,6 +74,14 @@ The Stage 5 suite exercised independent setup, planner/start conditions, partici
 
 For a rerun, use `QUARREL_ALLOW_REMOTE_TESTS=true QUARREL_TEST_URL=http://127.0.0.1:3001 npm run test:lawyer` while that server is running. Confirm the configured Cloud target first. Local Docker/CI results, if run, must be recorded separately.
 
+## GitHub CI
+
+[Run 42420018063](https://github.com/diamster/falls-hacks-2026-quarrel/actions/runs/42420018063) **passed** for implementation commit `ea0fa6c9627c94bfa89b72693f1c8b55034d033b` on `quarrel-stage-5`.
+
+The independent runner passed the full coverage/build check, database suite, HTTP API checks, room/theme Realtime synchronization, legacy debate and demo-judge regressions, leave/rejoin checks, and the complete Stage 5 lawyer flow including real chess-clock expiry and private consultations. CI used its own isolated Supabase instance and deterministic model mode; these results supplement the separate Cloud checks above and do not establish live Gemini behavior. The final verification-record follow-up changes documentation only.
+
+CI logs report **539 unit/component tests passed, 5 opt-in skipped**, and **260 database assertions across 6 files passed**. Integration groups passed: rooms/themes 15, legacy debate 8, legacy judge 7, leave/rejoin 7, and Stage 5 flow 10. The Stage 5 runner completed 8 demo jobs, with no live-AI or fallback jobs; this is distinct from the Cloud run's fallback evidence.
+
 ## Browser acceptance
 
 The production-mode app was inspected in **two isolated origins/sessions in the same Chromium browser**, not two different browser engines. Desktop viewport: **1440 × 1000**. Mobile viewport: **390 × 844**.
@@ -95,7 +103,7 @@ The browser room was synthetic. Two of its public lawyer presentations were save
 - An earlier interrupted development HTTP run saved **two live AI plans and one live AI judge summary**. The interrupted run itself is not counted as a completed integration pass.
 - The browser flow saved **two live AI lawyer presentations**. This confirms those calls reached Gemini and produced accepted structured output.
 - A bounded diagnostic made **two requests**, both returning **HTTP 429**, indicating provider quota/rate limitations. No credentials or full provider payloads were printed.
-- **No live AI jury result was confirmed.** The complete HTTP/browser flow reached a clearly labelled fallback split/inconclusive verdict. Successful live plans, presentations and a summary do not prove live jury behavior or perfect semantic fidelity.
+- **No live AI jury result or successful live private consultation was confirmed.** Both paths completed with labelled fallback output; the final verdict was split/inconclusive. Successful live plans, presentations and a summary do not prove live jury behavior or perfect semantic fidelity.
 
 ## Visual evidence
 
@@ -107,7 +115,7 @@ The application screenshots were saved during the production-mode browser inspec
 
 ## Known limits and remaining work
 
-- Full coverage/build, Webpack development startup, Cloud, HTTP and browser checks passed. GitHub CI is recorded separately after the branch push. Live jury generation remains unverified because the observed provider calls encountered quota/rate limits.
+- Full coverage/build, Webpack development startup, Cloud, HTTP, browser and GitHub CI checks passed. Live jury generation and successful live private consultation remain unverified because the observed provider calls encountered quota/rate limits.
 - Model instructions, output bounds and validation do not mathematically prove that every lawyer rewrite preserves meaning. Original official drafts are available to the author and judge/jury for comparison; unchanged fallback is labelled. Private consultations never become evidence.
 - Demo/fallback verdicts return split/inconclusive and explicitly identify that no live AI evaluation occurred. They are not evidence of neutral live jury quality.
 - The database authorizes deadlines; client countdowns estimate server time. Sleeping tabs and temporary network loss can delay their displayed refresh. Authorized reads reconcile elapsed deadlines; they do not restore writing time.
