@@ -135,6 +135,13 @@ try {
   const afterReplay = await success(a, '/judge', first);
   assert.equal(afterReplay.judge.messages.filter(item => item.id === message.id).length, 1);
   assert.equal(afterReplay.judge.messages.find(item => item.id === message.id).text, firstAnswer.text);
+  // HTTP/demo completion can precede asynchronous Postgres Changes delivery.
+  // Wait for the actual stream event; polling does not create substitute events
+  // or more requests, and the outer finally always closes the subscription.
+  const realtimeDeadline = Date.now() + 10_000;
+  while (!events.some(event => typeof event.debate_version === 'number') && Date.now() < realtimeDeadline) {
+    await pause(100);
+  }
   assert.ok(events.some(event => typeof event.debate_version === 'number'), 'The real room Realtime stream delivered judge invalidations.');
   pass(`Concurrent duplicate requests retain one shared message/answer; ${tooSoon.status === 429 ? 'rate limiting' : 'pending-work rejection'} works and chat leaves official history, turn and deadline unchanged.`);
 
