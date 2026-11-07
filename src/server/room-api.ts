@@ -3,12 +3,16 @@ import { after, NextRequest, NextResponse } from "next/server";
 import { getTheme, isThemeId } from "@/themes";
 import { judgeServerConfig, processJudgeWork } from "./judge-worker";
 
-type Action = "session" | "create" | "join" | "ready" | "heartbeat" | "theme" | "propose" | "approve" | "changes" | "start" | "argument" | "advance" | "judge";
+type Action = "session" | "create" | "join" | "leave" | "ready" | "heartbeat" | "theme" | "propose" | "approve" | "changes" | "start" | "argument" | "advance" | "judge";
+const roomIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const cookieNames = ["quarrel_access", "quarrel_refresh"] as const;
 const messages: Record<string, [number, string]> = {
   UNAUTHORIZED: [401, "Your player session has expired. Please reload and join again."],
   ROOM_NOT_FOUND: [404, "That room does not exist. Check the six-character code."],
   ROOM_FULL: [409, "That room already has two players."],
+  ROOM_CLOSED: [409, "A player has left that room. Ask for a new invitation."],
+  STALE_ROOM: [409, "Your room changed in another tab. The current room is being refreshed; your action was not applied."],
+  INVALID_ROOM: [400, "This action needs a valid room ID. Refresh the page."],
   ALREADY_IN_ROOM: [409, "You already have a seat in another room in this browser."],
   ROOM_EXPIRED: [410, "This room has expired. Create a new room."],
   INVALID_NAME: [400, "Enter a display name between 1 and 32 characters."],
@@ -56,7 +60,7 @@ const messages: Record<string, [number, string]> = {
 };
 
 class RoomError extends Error {
-  constructor(readonly status: number, message: string) { super(message); }
+  constructor(readonly status: number, message: string, readonly code?: string) { super(message); }
 }
 
 function config() {
@@ -66,16 +70,16 @@ function config() {
   return { url, key };
 }
 
-function client(url: string, key: string, token?: string) {
+function client(url: string, key: string, token?: string, roomId?: string | null) {
   return createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-    ...(token ? { global: { headers: { Authorization: `Bearer ${token}` } } } : {}),
+    ...(token ? { global: { headers: { Authorization: `Bearer ${token}`, ...(roomId ? { "x-quarrel-room-id": roomId } : {}) } } } : {}),
   });
 }
 
 function failDatabase(message: string): never {
   const known = messages[message];
-  if (known) throw new RoomError(...known);
+  if (known) throw new RoomError(...known, message === "STALE_ROOM" ? message : undefined);
   throw new RoomError(503, "The room service is temporarily unavailable. Please try again.");
 }
 
@@ -87,7 +91,7 @@ function checkAuthAvailability(error: { status?: number } | null) {
   }
 }
 
-async function identity(request: NextRequest, url: string, key: string, allowNew: boolean) {
+async function identity(request: NextRequest, url: string, key: string, allowNew: boolean, roomId?: string | null) {
   const access = request.cookies.get(cookieNames[0])?.value;
   const refresh = request.cookies.get(cookieNames[1])?.value;
   const auth = client(url, key);
@@ -95,19 +99,19 @@ async function identity(request: NextRequest, url: string, key: string, allowNew
     // Verify with Auth; never authorize by decoding a browser-supplied identifier.
     const { data, error } = await auth.auth.getUser(access);
     checkAuthAvailability(error);
-    if (!error && data.user) return { db: client(url, key, access), access, session: null };
+    if (!error && data.user) return { db: client(url, key, access, roomId), access, session: null };
   }
   if (refresh) {
     const { data, error } = await auth.auth.refreshSession({ refresh_token: refresh });
     checkAuthAvailability(error);
-    if (!error && data.session) return { db: client(url, key, data.session.access_token), access: data.session.access_token, session: data.session };
+    if (!error && data.session) return { db: client(url, key, data.session.access_token, roomId), access: data.session.access_token, session: data.session };
     throw new RoomError(401, messages.UNAUTHORIZED[1]);
   }
   if (access) throw new RoomError(401, messages.UNAUTHORIZED[1]);
   if (!allowNew) return null;
   const { data, error } = await auth.auth.signInAnonymously();
   if (error || !data.session) throw new RoomError(503, "Could not create a player session. Check that anonymous sign-ins are enabled, or try again shortly.");
-  return { db: client(url, key, data.session.access_token), access: data.session.access_token, session: data.session };
+  return { db: client(url, key, data.session.access_token, roomId), access: data.session.access_token, session: data.session };
 }
 
 async function input(request: NextRequest, action: Action): Promise<Record<string, unknown>> {
@@ -144,7 +148,7 @@ async function input(request: NextRequest, action: Action): Promise<Record<strin
   let body: Record<string, unknown>;
   try { body = JSON.parse(text); } catch { throw new RoomError(400, "Invalid room request."); }
   const fields: string[] = {
-    create: ["name"], join: ["name", "code"], ready: ["ready"], heartbeat: [], theme: ["themeId"],
+    create: ["name"], join: ["name", "code"], leave: ["roomId"], ready: ["ready"], heartbeat: [], theme: ["themeId"],
     propose: ["topic", "positionA", "positionB", "revision"], approve: ["revision"],
     changes: ["message", "revision"], start: ["revision"], argument: ["text", "revision", "turnIndex"], advance: ["revision", "turnIndex"],
     judge: ["text", "revision", "turnIndex", "requestKey"],
@@ -161,6 +165,7 @@ async function input(request: NextRequest, action: Action): Promise<Record<strin
     body.code = body.code.trim().toUpperCase();
   }
   if (action === "ready" && typeof body.ready !== "boolean") failDatabase("INVALID_READY");
+  if (action === "leave" && (typeof body.roomId !== "string" || !roomIdPattern.test(body.roomId))) failDatabase("INVALID_ROOM");
   if (action === "theme" && !isThemeId(body.themeId)) failDatabase("INVALID_THEME");
   if (["propose", "approve", "changes", "start", "argument", "advance", "judge"].includes(action)) {
     if (!Number.isInteger(body.revision) || (body.revision as number) < 0 || (body.revision as number) > 2_147_483_646) failDatabase("INVALID_REVISION");
@@ -200,8 +205,12 @@ export async function roomRoute(request: NextRequest, action: Action) {
   let response: NextResponse;
   try {
     const body = await input(request, action);
+    const expectedRoomId = action === "session" ? null : request.headers.get("x-quarrel-room-id");
+    if (expectedRoomId !== null && !roomIdPattern.test(expectedRoomId)) failDatabase("INVALID_ROOM");
     const { url, key } = config();
-    const auth = await identity(request, url, key, action === "create" || action === "join");
+    // This is a stale-view guard, never identity: Postgres checks it under the
+    // same room lock as the authorized mutation. GET recovers the current room.
+    const auth = await identity(request, url, key, action === "create" || action === "join", expectedRoomId);
     if (!auth) {
       if (action !== "session") failDatabase("UNAUTHORIZED");
       response = NextResponse.json({ room: null });
@@ -213,6 +222,7 @@ export async function roomRoute(request: NextRequest, action: Action) {
         session: ["get_quarrel_room", {}],
         create: ["create_quarrel_room", { p_name: body.name }],
         join: ["join_quarrel_room", { p_name: body.name, p_code: body.code }],
+        leave: ["leave_quarrel_room", { p_expected_room_id: body.roomId }],
         ready: ["set_quarrel_ready", { p_ready: body.ready }],
         heartbeat: ["heartbeat_quarrel_room", {}],
         theme: ["set_quarrel_theme", { p_theme_id: body.themeId }],
@@ -243,7 +253,7 @@ export async function roomRoute(request: NextRequest, action: Action) {
     }
   } catch (error) {
     const known = error instanceof RoomError;
-    response = NextResponse.json({ error: known ? error.message : "The room service is temporarily unavailable. Please try again." }, { status: known ? error.status : 503 });
+    response = NextResponse.json({ error: known ? error.message : "The room service is temporarily unavailable. Please try again.", ...(known && error.code ? { code: error.code } : {}) }, { status: known ? error.status : 503 });
     if (known && error.status === 401) {
       for (const name of cookieNames) response.cookies.set(name, "", { httpOnly: true, sameSite: "strict", secure: request.nextUrl.protocol === "https:", path: "/api/rooms", maxAge: 0 });
     }

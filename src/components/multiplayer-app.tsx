@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent, type MouseEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent, type MouseEvent } from "react";
 import { DebateArena } from "./debate-arena";
 import { JudgeComposer, JudgeConversation, PreparingJudgeQuestions, useJudgePresentation } from "./judge-panel";
 import { ThemeSelector } from "./theme-selector";
@@ -44,8 +44,35 @@ export function RoomEntry({ pending, initialCode, onCreate, onJoin, theme = getT
   </section>;
 }
 
-export function RoomLobby({ room, pending, offline, live, onReady, theme = getTheme(room.themeId) }: {
-  room: RoomSnapshot; pending: boolean; offline: boolean; live: boolean; theme?: ThemeConfig; onReady: (ready: boolean) => void;
+function LeaveRoomControl({ pending, offline, onLeave, label = "Leave this room" }: {
+  pending: boolean; offline: boolean; onLeave: () => Promise<boolean>; label?: string;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const container = useRef<HTMLDivElement>(null);
+  const wasConfirming = useRef(false);
+  const descriptionId = useId();
+  useEffect(() => {
+    if (confirming) container.current?.focus();
+    else if (wasConfirming.current) container.current?.querySelector("button")?.focus();
+    wasConfirming.current = confirming;
+  }, [confirming]);
+  async function confirm() {
+    if (pending || offline || leaving) return;
+    setLeaving(true);
+    try { await onLeave(); } finally { setLeaving(false); }
+  }
+  if (!confirming) return <div ref={container} className="room-leave"><PixelButton tone="cream" disabled={pending || offline} onClick={() => setConfirming(true)}>{label}</PixelButton></div>;
+  return <div ref={container} className="room-leave room-leave-confirmation" role="group" aria-label="Leave room confirmation" aria-describedby={descriptionId} tabIndex={-1}>
+    <h3>Leave this room?</h3>
+    <p id={descriptionId}>You won’t be able to return to this seat. The debate record stays available to the remaining player. Any active turn timers keep running.</p>
+    <p>You can then create or join another room in this browser.</p>
+    <div className="room-leave-actions"><PixelButton tone="orange" disabled={pending || offline || leaving} onClick={() => { void confirm(); }}>{leaving ? "Leaving…" : "Leave room"}</PixelButton><PixelButton tone="cream" disabled={pending || leaving} onClick={() => setConfirming(false)}>Cancel</PixelButton></div>
+  </div>;
+}
+
+export function RoomLobby({ room, pending, offline, live, onReady, onLeave, theme = getTheme(room.themeId) }: {
+  room: RoomSnapshot; pending: boolean; offline: boolean; live: boolean; theme?: ThemeConfig; onReady: (ready: boolean) => void; onLeave?: () => Promise<boolean>;
 }) {
   const [copied, setCopied] = useState("");
   const [shareUrl, setShareUrl] = useState("");
@@ -77,6 +104,7 @@ export function RoomLobby({ room, pending, offline, live, onReady, theme = getTh
       {started ? <p className="room-sync-note">{room.debate?.phase === "verdict" ? "All rounds are complete. Your room and record remain available." : "The debate is underway. Your seats and agreed positions are locked."}</p> : <PixelButton tone={you?.ready ? "cream" : "green"} disabled={pending || offline || !you} aria-pressed={you?.ready ?? false} onClick={() => onReady(!you?.ready)}>{pending ? "Updating…" : you?.ready ? "I’m not ready" : "I’m ready"}</PixelButton>}
       <p className="room-sync-note" role="status">{offline ? "Connection lost. Reconnecting…" : live ? "Live room updates connected." : "Connecting live updates. Checking the room every 10 seconds."}</p>
       <p className="room-fine-print">Your seat survives a refresh in this browser. Keep the invitation private. Disconnections appear within about 45 seconds.</p>
+      {onLeave && <LeaveRoomControl pending={pending} offline={offline} onLeave={onLeave}/>}
     </div>
   </section>;
 }
@@ -111,6 +139,15 @@ export function MultiplayerApp() {
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
     navigate("start");
+  }
+  async function leaveRoom(roomId: string) {
+    const success = await session.leaveRoom(roomId);
+    if (success) {
+      setInitialCode("");
+      setPreview(null);
+      navigate("start");
+    }
+    return success;
   }
   const room = view === "room" ? session.room : null;
   const theme = getTheme(room?.themeId);
@@ -156,7 +193,7 @@ export function MultiplayerApp() {
           </section>}
         </div>
         {session.loading || view === "auto" ? <section className="room-panel pixel-panel room-loading" aria-live="polite"><PixelIcon name="leaf"/><p>Checking for your seat…</p></section>
-          : room ? <RoomLobby theme={theme} room={room} pending={session.pending} offline={session.offline} live={session.live} onReady={ready => { void session.setReady(ready); }}/>
+          : room ? <RoomLobby key={room.id} theme={theme} room={room} pending={session.pending} offline={session.offline} live={session.live} onReady={ready => { void session.setReady(ready); }} onLeave={() => leaveRoom(room.id)}/>
           : session.room ? <section className="room-panel pixel-panel" aria-labelledby="saved-room-title">
             <SectionHeading eyebrow="WELCOME BACK"><span id="saved-room-title">Your room is saved</span></SectionHeading>
             <div className="room-panel-body saved-room-body">
@@ -164,7 +201,7 @@ export function MultiplayerApp() {
               <div className="room-code-label"><span className="eyebrow">SAVED ROOM</span><strong>{session.room.code}</strong></div>
               <p>{session.room.debate?.phase === "verdict" ? "The debate is complete. Resume to view its record." : "Returning to start does not pause a live debate."}</p>
               <PixelButton tone="green" onClick={() => navigate("room")}>Resume room<PixelIcon name="arrow"/></PixelButton>
-              <p className="room-fine-print">For a fresh room, use a separate browser or private window. This browser keeps your saved seat.</p>
+              <LeaveRoomControl key={session.room.id} pending={session.pending} offline={session.offline} label="Create or join another room" onLeave={() => leaveRoom(session.room!.id)}/>
             </div>
           </section>
           : <RoomEntry theme={theme} pending={session.pending} initialCode={initialCode} onCreate={name => { void session.create(name).then(success => { if (success) setView("room"); }); }} onJoin={(code, name) => { void session.join(code, name).then(success => { if (success) setView("room"); }); }}/>}

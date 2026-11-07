@@ -22,6 +22,8 @@ Before handing off, run `npm run check` (automated component tests with coverage
 
 The database is the authority for all debate transitions. Do not accept browser player IDs, phase changes, deadlines or winner fields. Serialize transitions under the room lock and enforce one entry per turn. Opening text belongs in private storage and must never leak through public room rows, direct reads or Realtime payloads before both opening turns finish. Use server timestamps plus monotonic elapsed time for display; timeout reconciliation must use the original deadline chain after disconnection. No client timer can skip an unexpired turn.
 
+Explicit leave is now authorized: retain historical player slots/names and debate records while detaching only the verified caller's membership. Never let a new person inherit a departed seat. Preserve the caller's Auth identity/cookies for subsequent rooms. Expected room IDs are stale-page guards, not identity; check them under the same database lock as room mutations. A delayed action from another tab must not mutate the caller's newer room. Require explicit product confirmation before leaving; cancellation or failure preserves the saved seat. Test same-browser leave/create/join, closed invitations, peer record preservation and stale-tab rejection with `test:leave`.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 ## This is NOT the Next.js you know

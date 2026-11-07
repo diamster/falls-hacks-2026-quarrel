@@ -61,7 +61,9 @@ Stop any server using the same port first. Stop/restart a production server arou
 
 Use **Back to start** (or the quarrel.io logo) to return to the welcome screen. A saved seat appears behind **Resume room**; its topic, theme and history are preserved. A completed room no longer opens automatically when visiting `/` without a room link. Explicit `/?room=CODE` URLs still restore the saved room after refresh; `/?start=1` keeps the welcome screen open. Returning to start does not pause a live debate.
 
-The existing one-room-per-session restriction remains. Creating or joining a fresh room while keeping the saved seat requires another browser or private window. New visitors without a saved session still see the Create/Join form.
+To start fresh in the same browser, choose **Create or join another room** on the saved-room card, then confirm **Leave room**. The Create/Join form returns immediately. Inside a room, **Leave this room** offers the same action. Cancel keeps your seat. Leaving ends your access to that old room; its names and debate record remain available to the remaining participant until room expiry. Active timers continue, and departed seats cannot be claimed by someone else.
+
+You keep the same authenticated browser session, without clearing cookies or allocating another anonymous account. The database permits one current room per identity. Requests carry the room shown when an action was clicked, so a stale tab cannot apply an old action to a newly created room; it refreshes the current room instead. Opening two player seats still requires separate browsers or private windows.
 
 ## Play a debate
 
@@ -156,7 +158,7 @@ To add another theme later, extend the configuration/asset registry, add its ori
 - Connection status reflects an authenticated heartbeat within 35 seconds. A stopped/closed client normally appears disconnected within about 45 seconds after the last heartbeat. Sleeping devices/background timer throttling can also appear disconnected. Realtime transport failure falls back to heartbeat refreshes, with an explicit status message.
 - Readiness is retained across refreshes/disconnections, but both-ready confirmation requires both players to be currently connected. A disconnected player's seat stays reserved; a third player cannot take it.
 - Rooms expire after 24 hours. Sessions survive ordinary refreshes and server restarts. Clearing browser cookies or an invalid/revoked session loses that seat; a name/code is not enough to impersonate its owner. Temporary Auth outages preserve recovery cookies.
-- One active room per anonymous session. No leave/kick/spectator/rematch controls are implemented. Expired room rows and anonymous test users remain in the selected database; expiry is an access rule, not automatic deletion. A future retention policy must distinguish test fixtures from real rooms.
+- One current room per anonymous session. Explicit leave releases that membership while preserving its historical slot/name. Invitations to rooms with a departed player are closed; the remaining player can still recover their record. No kick, spectator or automatic rematch controls are implemented. Expired room rows and anonymous test users remain in the selected database; expiry is an access rule, not automatic deletion. A future retention policy must distinguish test fixtures from real rooms.
 
 This migration assumes a **dedicated quarrel Supabase project**. It restricts the `supabase_realtime` publication to inserts/updates for the entire project, because Supabase Postgres Changes does not apply RLS to DELETE events. This prevents deleted room metadata from leaking. Review that publication-wide setting before applying the migration to a shared project.
 

@@ -16,6 +16,7 @@ const room = (debate: DebateSnapshot, overrides: Partial<RoomSnapshot> = {}): Ro
 function client(current: RoomSnapshot) {
   return { room: current, loading: false, pending: false, judgePending: false, offline: false, live: true, error: "", remainingSeconds: 45,
     askJudge: vi.fn().mockResolvedValue(true),
+    leaveRoom: vi.fn().mockResolvedValue(true),
     refresh: vi.fn().mockResolvedValue(true), create: vi.fn().mockResolvedValue(true), join: vi.fn().mockResolvedValue(true), setTheme: vi.fn().mockResolvedValue(true), setReady: vi.fn().mockResolvedValue(true), proposeTopic: vi.fn().mockResolvedValue(true), approveTopic: vi.fn().mockResolvedValue(true), requestChanges: vi.fn().mockResolvedValue(true), startDebate: vi.fn().mockResolvedValue(true), submitArgument: vi.fn().mockResolvedValue(true),
   };
 }

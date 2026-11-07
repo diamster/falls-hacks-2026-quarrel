@@ -15,6 +15,7 @@ function req(action: string, body?: unknown, cookie = "", origin = "http://local
   });
 }
 const cookie = "quarrel_access=existing-token; quarrel_refresh=old-refresh";
+const savedRoomId = "920e0108-fbaa-4317-91fd-048f53678d45";
 beforeEach(() => {
   vi.stubEnv("SUPABASE_URL", "http://localhost:54321");
   vi.stubEnv("SUPABASE_PUBLISHABLE_KEY", "public-key");
@@ -30,6 +31,50 @@ beforeEach(() => {
 });
 
 describe("session-authorized room API", () => {
+  it("leaves the expected room without clearing cookies, allocating a new identity or exposing a room", async () => {
+    mock.rpc.mockResolvedValue({ data: null, error: null });
+    const response = await roomRoute(req("leave", { roomId: savedRoomId }, cookie), "leave");
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ room: null });
+    expect(mock.getUser).toHaveBeenCalledWith("existing-token");
+    expect(mock.rpc).toHaveBeenCalledWith("leave_quarrel_room", { p_expected_room_id: savedRoomId });
+    expect(mock.signInAnonymously).not.toHaveBeenCalled();
+    expect(response.cookies.getAll()).toHaveLength(0);
+  });
+  it.each([{}, { roomId: null }, { roomId: "wrong" }, { roomId: savedRoomId, userId: "victim" }])("rejects malformed or forged leave requests %j", async body => {
+    expect((await roomRoute(req("leave", body, cookie), "leave")).status).toBe(400);
+    expect(mock.rpc).not.toHaveBeenCalled();
+  });
+  it("requires an authenticated same-origin leave request", async () => {
+    expect((await roomRoute(req("leave", { roomId: savedRoomId }), "leave")).status).toBe(401);
+    expect((await roomRoute(req("leave", { roomId: savedRoomId }, cookie, "https://other.example"), "leave")).status).toBe(403);
+    expect(mock.rpc).not.toHaveBeenCalled();
+  });
+  it("forwards the expected room guard to PostgreSQL without replacing verified identity", async () => {
+    const request = req("ready", { ready: true }, cookie);
+    request.headers.set("x-quarrel-room-id", savedRoomId);
+    await roomRoute(request, "ready");
+    expect(mock.createClient).toHaveBeenLastCalledWith("http://localhost:54321", "public-key", expect.objectContaining({
+      global: { headers: { Authorization: "Bearer existing-token", "x-quarrel-room-id": savedRoomId } },
+    }));
+  });
+  it("rejects malformed scope headers and returns a recoverable stale-room code", async () => {
+    const request = req("ready", { ready: true }, cookie);
+    request.headers.set("x-quarrel-room-id", "not-a-uuid");
+    expect((await roomRoute(request, "ready")).status).toBe(400);
+    expect(mock.rpc).not.toHaveBeenCalled();
+    mock.rpc.mockResolvedValue({ data: null, error: { message: "STALE_ROOM" } });
+    const stale = await roomRoute(req("leave", { roomId: savedRoomId }, cookie), "leave");
+    expect(stale.status).toBe(409);
+    expect(await stale.json()).toMatchObject({ code: "STALE_ROOM" });
+    expect(stale.cookies.getAll()).toHaveLength(0);
+  });
+  it("explains that invitations to departed rooms are closed", async () => {
+    mock.rpc.mockResolvedValue({ data: null, error: { message: "ROOM_CLOSED" } });
+    const response = await roomRoute(req("join", { name: "Sam", code: "ABC234" }, cookie), "join");
+    expect(response.status).toBe(409);
+    expect((await response.json()).error).toMatch(/player has left/);
+  });
   it("returns an empty session without allocating an account or exposing credentials", async () => {
     const response = await roomRoute(req("session"), "session");
     expect(await response.json()).toEqual({ room: null });

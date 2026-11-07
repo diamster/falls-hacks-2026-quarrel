@@ -291,6 +291,145 @@ describe("Stage 2 room lobby", () => {
   });
 });
 
+describe("Leaving a room to start again", () => {
+  it("keeps Resume available, requires confirmation, and creates a fresh room after leaving", async () => {
+    const user = userEvent.setup();
+    window.history.replaceState({}, "", "/?start=1&room=ABC234");
+    const previous = room({ debate: { ...activeDebate(), phase: "verdict", activeSlot: null, turnDeadline: null } });
+    current = previous;
+    let release!: (value: Response) => void;
+    fetchMock.mockImplementation(async (path, options) => {
+      if (path === "/api/rooms/leave") {
+        expect(JSON.parse(options!.body as string)).toEqual({ roomId: previous.id });
+        expect(options!.headers).toEqual({ "Content-Type": "application/json", "x-quarrel-room-id": previous.id });
+        return new Promise(resolve => { release = resolve; });
+      }
+      if (path === "/api/rooms") current = room({ id: "a07a0285-5043-4f36-a15c-6c2f9f143574", code: "DEF567" });
+      return json(response(current));
+    });
+    render(<MultiplayerApp/>);
+    await user.click(await screen.findByRole("button", { name: "Create or join another room" }));
+    expect(screen.getByRole("group", { name: "Leave room confirmation" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Resume room" })).toBeEnabled();
+    expect(screen.getByText(/You won’t be able to return to this seat/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.getByRole("button", { name: "Create or join another room" })).toHaveFocus();
+    expect(fetchMock.mock.calls.some(([path]) => path === "/api/rooms/leave")).toBe(false);
+    await user.click(screen.getByRole("button", { name: "Create or join another room" }));
+    await user.click(screen.getByRole("button", { name: "Leave room" }));
+    expect(screen.getByRole("button", { name: "Leaving…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+    expect(screen.queryByRole("textbox", { name: "Your display name" })).not.toBeInTheDocument();
+    current = null;
+    await act(async () => { release(json(response(null))); });
+    const name = await screen.findByRole("textbox", { name: "Your display name" });
+    expect(window.location.search).toBe("?start=1");
+    expect(screen.queryByRole("button", { name: "Resume room" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Join a room" }));
+    expect(screen.getByRole("textbox", { name: "Six-character room code" })).toHaveValue("");
+    await user.click(screen.getByRole("button", { name: "Create a room" }));
+    await user.type(name, "Avery again");
+    await user.click(screen.getByRole("button", { name: "Create private room" }));
+    expect(await screen.findByRole("textbox", { name: "Shareable invitation" })).toHaveValue(`${window.location.origin}/?room=DEF567`);
+    expect(previous.code).toBe("ABC234");
+    expect(previous.debate?.phase).toBe("verdict");
+    expect(fetchMock.mock.calls.filter(([path]) => path === "/api/rooms/leave")).toHaveLength(1);
+  });
+
+  it("keeps the active room and its record when leaving fails, and allows cancellation", async () => {
+    const user = userEvent.setup();
+    current = room({ debate: activeDebate() });
+    fetchMock.mockImplementation(async path => path === "/api/rooms/leave" ? json({ error: "The room service is unavailable. Try again." }, 503) : json(response(current)));
+    render(<MultiplayerApp/>);
+    await user.click(await screen.findByRole("button", { name: "Leave this room" }));
+    await user.click(screen.getByRole("button", { name: "Leave room" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("The room service is unavailable. Try again.");
+    expect(screen.getByRole("list", { name: "Room players" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Your opening statement" })).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Your display name" })).not.toBeInTheDocument();
+    expect(window.location.search).toBe("?room=ABC234");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("group", { name: "Leave room confirmation" })).not.toBeInTheDocument();
+    act(() => window.dispatchEvent(new Event("offline")));
+    expect(screen.getByRole("button", { name: "Leave this room" })).toBeDisabled();
+  });
+
+  it("stops room heartbeats and subscriptions after a confirmed leave without resetting identity", async () => {
+    vi.useFakeTimers();
+    current = room();
+    fetchMock.mockImplementation(async path => {
+      if (path === "/api/rooms/leave") current = null;
+      return json(response(current));
+    });
+    const view = renderHook(() => useRoomClient());
+    await act(async () => { await Promise.resolve(); });
+    const id = view.result.current.room!.id;
+    await act(async () => { expect(await view.result.current.leaveRoom(id)).toBe(true); });
+    expect(view.result.current.room).toBeNull();
+    expect(view.result.current.live).toBe(false);
+    expect(socket.removeAllChannels).toHaveBeenCalled();
+    const heartbeatCount = fetchMock.mock.calls.filter(([path]) => path === "/api/rooms/heartbeat").length;
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+    expect(fetchMock.mock.calls.filter(([path]) => path === "/api/rooms/heartbeat")).toHaveLength(heartbeatCount);
+    expect(fetchMock.mock.calls.some(([path]) => String(path).includes("auth"))).toBe(false);
+    view.unmount();
+  });
+
+  it("keeps the clicked room scope across a queued refresh and resyncs a stale mutation without retrying it", async () => {
+    const previous = room();
+    const next = room({ id: "a07a0285-5043-4f36-a15c-6c2f9f143574", code: "DEF567" });
+    current = previous;
+    const view = renderHook(() => useRoomClient());
+    await waitFor(() => expect(view.result.current.live).toBe(true));
+    let release!: (value: Response) => void;
+    let holdRefresh = true;
+    fetchMock.mockImplementation(async (path, options) => {
+      if (path === "/api/rooms/session" && holdRefresh) { holdRefresh = false; return new Promise(resolve => { release = resolve; }); }
+      if (path === "/api/rooms/ready") {
+        expect(options!.headers).toEqual({ "Content-Type": "application/json", "x-quarrel-room-id": previous.id });
+        return json({ error: "This browser changed rooms. Refreshing your current room.", code: "STALE_ROOM" }, 409);
+      }
+      return json(response(current));
+    });
+    let refresh!: Promise<boolean>;
+    let ready!: Promise<boolean>;
+    act(() => { refresh = view.result.current.refresh(); ready = view.result.current.setReady(true); });
+    expect(fetchMock.mock.calls.filter(([path]) => path === "/api/rooms/ready")).toHaveLength(0);
+    current = next;
+    await act(async () => { release(json(response(next))); await refresh; expect(await ready).toBe(false); });
+    await waitFor(() => expect(view.result.current.room?.code).toBe("DEF567"));
+    expect(fetchMock.mock.calls.filter(([path]) => path === "/api/rooms/ready")).toHaveLength(1);
+    expect(fetchMock.mock.calls.filter(([path]) => path === "/api/rooms/session").length).toBeGreaterThanOrEqual(3);
+    expect(view.result.current.room?.players[0].ready).toBe(false);
+  });
+  it("keeps an action tied to the rendered room even after a newer snapshot arrives", async () => {
+    const previous = room();
+    const next = room({ id: "a07a0285-5043-4f36-a15c-6c2f9f143574", code: "DEF567" });
+    current = previous;
+    const view = renderHook(() => useRoomClient());
+    await waitFor(() => expect(view.result.current.live).toBe(true));
+    const readyFromDisplayedRoom = view.result.current.setReady;
+    fetchMock.mockImplementation(async (path, options) => {
+      if (path === "/api/rooms/ready") {
+        expect(options!.headers).toEqual({ "Content-Type": "application/json", "x-quarrel-room-id": previous.id });
+        return json({ error: "This browser changed rooms. Refreshing your current room.", code: "STALE_ROOM" }, 409);
+      }
+      return json(response(current));
+    });
+    current = next;
+    await act(async () => {
+      await view.result.current.refresh();
+      // A browser event can still invoke the old rendered button before React
+      // commits the new snapshot. It must never authorize a new-room mutation.
+      expect(await readyFromDisplayedRoom(true)).toBe(false);
+      await view.result.current.refresh();
+    });
+    expect(view.result.current.room?.code).toBe("DEF567");
+    expect(view.result.current.room?.players[0].ready).toBe(false);
+    expect(fetchMock.mock.calls.filter(([path]) => path === "/api/rooms/ready")).toHaveLength(1);
+  });
+});
+
 describe("Stage 2 input and transport boundaries", () => {
   it("sanitizes codes, caps names, and guards direct invalid form submissions", async () => {
     const user = userEvent.setup();
@@ -591,7 +730,10 @@ describe("Stage 2.5 shared theme selection", () => {
       return json(response(current));
     });
     render(<MultiplayerApp />);
-    await screen.findByRole("button", { name: "I’m ready" });
+    // Wait on the tiny recovery indicator before traversing the full SVG's
+    // accessibility tree, which otherwise blocks the recovery promise in jsdom.
+    await waitFor(() => expect(document.querySelector(".room-loading")).not.toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "I’m ready" })).toBeInTheDocument();
     await user.click(screen.getByRole("radio", { name: "Jungle theme" }));
     await user.keyboard("{Home}");
     await user.click(screen.getByRole("button", { name: "I’m ready" }));
@@ -654,7 +796,8 @@ describe("Stage 2.5 shared theme selection", () => {
     let release!: (value: Response) => void;
     fetchMock.mockImplementation(async path => path === "/api/rooms/theme" ? new Promise(resolve => { release = resolve; }) : json(response(current)));
     render(<MultiplayerApp />);
-    await screen.findByRole("button", { name: "I’m ready" });
+    await waitFor(() => expect(document.querySelector(".room-loading")).not.toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "I’m ready" })).toBeInTheDocument();
     await user.click(screen.getByRole("radio", { name: "Superhero theme" }));
     expect(screen.getByRole("radiogroup", { name: "Room theme" })).toHaveAttribute("aria-busy", "true");
     for (const radio of screen.getAllByRole("radio")) expect(radio).toBeDisabled();

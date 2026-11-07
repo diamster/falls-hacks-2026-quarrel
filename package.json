@@ -18,6 +18,7 @@
     "test:db": "supabase test db",
     "test:supabase": "node --env-file-if-exists=.env.local tests/db/supabase.integration.mjs",
     "test:api": "node --env-file-if-exists=.env.local tests/db/api.integration.mjs",
+    "test:leave": "node --env-file-if-exists=.env.local tests/db/leave.integration.mjs",
     "test:debate": "node --env-file-if-exists=.env.local tests/db/debate.integration.mjs",
     "test:judge": "node --env-file-if-exists=.env.local tests/db/judge.integration.mjs",
     "test:judge:live": "node --env-file-if-exists=.env.local node_modules/vitest/vitest.mjs run tests/judge-live.test.ts"

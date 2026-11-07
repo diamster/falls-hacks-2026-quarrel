@@ -43,6 +43,10 @@ jobs:
         env:
           QUARREL_TEST_URL: http://127.0.0.1:3001
         run: npm run test:judge
+      - name: Verify same-browser room changes
+        env:
+          QUARREL_TEST_URL: http://127.0.0.1:3001
+        run: npm run test:leave
       - name: Stop local Supabase
         if: always()
         run: npm run supabase:stop > /tmp/quarrel-supabase-stop.log 2>&1

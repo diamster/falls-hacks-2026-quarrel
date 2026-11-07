@@ -93,7 +93,38 @@ Remote service/HTTP/browser tests retain synthetic room/auth rows. Room expiry r
 - Gemini calls default to an eight-second timeout (configurable within 1–12 seconds). Timing is bounded to fit short turns; an unavailable or slow provider can therefore produce a fallback. Conversation context is bounded to six official entries, two questions and the last eight completed chat pairs.
 - Start introductions/transitions are scripted; direct chat and clarification questions are live AI. The model cannot independently verify participant claims or retrieve outside evidence.
 - The original authenticated `start_quarrel_debate` RPC is retained for legacy compatibility/tests. An authorized host can deliberately invoke it directly to start a judge-disabled debate; all existing approval/readiness/turn authorization still applies. The application always uses the new capability-protected judged start. Existing saved debates are not silently upgraded.
-- Unsent drafts do not survive refresh. Rematches/leaving rooms and physical test-data cleanup remain outside this stage.
+- Unsent drafts do not survive refresh. Restarting the same debate and physical test-data cleanup remain outside this stage. Explicit leave/new-room support was added in the follow-up below.
 - Performance advisor: no findings. Security advisor: private RLS tables without policies (intentional client denial), sixteen authenticated security-definer RPCs (intentional checked entry points), anonymous membership policies (account-free rooms), and the existing project-wide leaked-password-protection notice (no password sign-in flow here). No access was widened to silence notices. See the [RLS notice](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy), [RPC notice](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable), [anonymous access notice](https://supabase.com/docs/guides/database/database-advisors?queryGroups=lint&lint=0012_auth_allow_anonymous_sign_ins), and [password protection setting](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection).
 
 Gemini implementation follows Google's [generateContent reference](https://ai.google.dev/api/generate-content), [structured response documentation](https://ai.google.dev/gemini-api/docs/structured-output), and [thinking configuration](https://ai.google.dev/gemini-api/docs/thinking). The configured model is an environment setting, not a browser input.
+
+## Follow-up: create another room in the same browser
+
+The saved-room screen previously offered only **Resume room**. It now also offers **Create or join another room**. After an explicit **Leave room** confirmation, the Create/Join form returns in the same browser. The lobby and active/completed room also have **Leave this room**. Cancel restores focus to the trigger; an unsuccessful request preserves the saved seat. Successful leave clears the old invitation from the URL/form.
+
+The verified anonymous identity and cookies are retained. Only that caller's membership is detached; its slot, display name, official arguments and judge history remain for the other participant. Departed seats cannot be reclaimed or filled by a different person, and their invitations reject new joins. Existing turn deadlines continue. Leaving is not a restart or a history deletion.
+
+Repository migration `20261107195302_leave_rooms.sql` was inspected and applied to Cloud as `20261107195638` (`leave_rooms`). It preserves the two-slot constraint, unique active user membership, authorization rules and existing data. The applied file SHA-256 is `b4024fb6a5b6ede9233d4105e43506b449959bdefa346fadfc80a85d9b6cab45`. As above, reconcile the management timestamp before a CLI push; do not replay it.
+
+Room mutations include the room the player saw when acting. This identifier is checked under the same database lock as verified membership; it never grants access. Delayed leave requests and actions from an older tab cannot alter the newer room. The client recovers the authoritative session after a stale-room rejection without replaying the action. Expired membership cleanup also preserves historical slots.
+
+Follow-up checks against the existing Cloud project:
+
+- `tests/db/leave.cloud.sql`: **63 assertions passed**, including a complete six-turn record and saved judge chat. Actual authenticated roles were used; the transaction rolled back its synthetic fixtures.
+- `npm run test:leave`: **6 grouped HTTP checks passed** with three isolated sessions. Covered same-identity leave/create/join, refresh, readiness, private access, closed invitations, peer history, forged requests, late leave and stale-tab mutations.
+- Existing Cloud suites: **15 room/theme checks, 8 debate checks, the complete API suite, and 7 judge checks passed**. The debate suite exercised a real 45-second expiry. The four judge jobs used sources **AI, AI, fallback, fallback**; provider availability remains variable.
+- Browser: created `2R6VCX`, left it, created `PEWFLV` in the same browser session, refreshed into that new room, then left again at a 390px mobile viewport. Cancel/focus return and both new-room controls worked; no browser console errors. The user's saved room was left intact.
+- Database advisors: performance returned no findings. The leave RPC adds one intentional authenticated security-definer entry point; existing private-table/anonymous-auth notices remain.
+
+Focused local leave/API/component checks passed. Full local runs encountered intermittent initial-recovery timeouts in existing illustrated UI tests while the machine was under substantial memory/CPU load (the same multiplayer file passed separately). Two recovery waits were changed to query the small loading indicator before the unchanged accessible-role assertions; no timeouts, coverage thresholds or functional assertions were relaxed. The final build and clean-runner results are recorded in the verification follow-up below.
+
+Remote HTTP checks retain synthetic rows until a separate cleanup; expiry restricts access, not physical storage. The three leave fixtures were `df59e344-58db-40e0-85b2-0583451924b4`, `c63f84a6-a401-4632-a286-5f319989adbb`, and `75433475-bd1a-42c6-aa21-c60ef9f19b0c`. The new regression judge fixture was `dc52f61a-70f0-4dae-9af2-288f5eedba52`.
+
+```sh
+# Running app uses the authorized Cloud configuration:
+QUARREL_ALLOW_REMOTE_TESTS=true QUARREL_TEST_URL=http://127.0.0.1:3000 npm run test:leave
+```
+
+![Saved room now offers another room](screenshots/stage4-new-room.png)
+
+![Mobile leave confirmation](screenshots/stage4-leave-mobile.png)
