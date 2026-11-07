@@ -93,9 +93,11 @@ export interface LawyerDebateViewProps {
   paused?: boolean;
   onSend: LawyerMessageAction;
   onConsult: LawyerMessageAction;
+  /** Opens the Settings popup; without it the heading links to the /settings page. */
+  onOpenSettings?: () => void;
 }
 
-export function LawyerDebateView({ room, theme, clocks, pending, offline, paused = false, onSend, onConsult }: LawyerDebateViewProps) {
+export function LawyerDebateView({ room, theme, clocks, pending, offline, paused = false, onSend, onConsult, onOpenSettings }: LawyerDebateViewProps) {
   const debate = room.lawyer;
   if (!debate) return null;
   const current = debate.subtopics.find(item => item.ordinal === debate.currentSubtopic);
@@ -114,7 +116,7 @@ export function LawyerDebateView({ room, theme, clocks, pending, offline, paused
     : judgeMessage?.text ?? `Our current question: ${current?.question ?? debate.topic ?? "the agreed topic"}`;
   const latestKey = messages.map(item => `${item.id}:${item.status}:${item.completedAt ?? ""}`).join("|") || null;
   return <section className={styles.debate} aria-label="Lawyer sidekick debate">
-    <header className={styles.subtopicHeading}><div><p className="eyebrow">{complete ? "DEBATE COMPLETE" : debate.phase === "jury" ? "JURY REVIEW" : `SUBTOPIC ${current?.ordinal ?? "—"} OF ${debate.subtopics.length}`}</p><h2>{complete ? "The jury’s decision" : current?.question ?? "Your debate is being prepared"}</h2></div><a href="/settings">Settings · {theme.displayName}<span>Theme locked</span></a></header>
+    <header className={styles.subtopicHeading}><div><p className="eyebrow">{complete ? "DEBATE COMPLETE" : debate.phase === "jury" ? "JURY REVIEW" : `SUBTOPIC ${current?.ordinal ?? "—"} OF ${debate.subtopics.length}`}</p><h2>{complete ? "The jury’s decision" : current?.question ?? "Your debate is being prepared"}</h2></div>{onOpenSettings ? <button type="button" aria-haspopup="dialog" onClick={onOpenSettings}>Settings · {theme.displayName}<span>Theme locked</span></button> : <a href="/settings">Settings · {theme.displayName}<span>Theme locked</span></a>}</header>
     <div className={styles.clocks} aria-label="Player clocks">{slots.map(slot => <div key={slot} className={styles.clock} data-active={debate.state === "composing" && debate.activeSlot === slot} data-expired={clocks[slot] <= 0}><span>{playerName(slot)} · {slot}{slot === room.you ? " · You" : ""}</span><strong role="timer" aria-label={`Player ${slot}: ${clocks[slot]} seconds remaining`}>{formatTurnTime(clocks[slot])}</strong><small>{complete ? "Complete" : clocks[slot] <= 0 ? "Time used" : debate.state === "composing" && debate.activeSlot === slot ? "Writing clock running" : "Clock paused"}</small></div>)}</div>
     <div className={styles.layout}>
       <div className={styles.main}>

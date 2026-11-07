@@ -31,12 +31,35 @@ describe("Public Stage 5 application", () => {
   it("opens the Courtroom welcome view with Settings navigation and no inline theme picker or old debate controls", () => {
     mockedClient.mockReturnValue(client(null)); const view = render(tree());
     expect(view.container.querySelector(".theme-shell")).toHaveAttribute("data-theme", "courtroom");
-    expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings");
-    expect(screen.getByRole("link", { name: /Preview themes in Settings/ })).toHaveAttribute("href", "/settings");
+    expect(screen.getByRole("button", { name: "Settings" })).toHaveAttribute("aria-haspopup", "dialog");
+    expect(screen.getByRole("button", { name: /Preview themes in Settings/ })).toHaveAttribute("aria-haspopup", "dialog");
+    expect(view.container.querySelector(".theme-shell")).toHaveClass("theme-shell--fit");
     expect(screen.queryByRole("radiogroup", { name: "Room theme" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Create private room" })).toBeDisabled();
     expect(screen.queryByRole("button", { name: /Ask Judge|Objection|Submit argument/ })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Art preview/ })).toHaveAttribute("href", "/preview");
+  });
+
+  it("opens Settings as a popup over the lobby with the shared theme picker, and closes it again", async () => {
+    const user = userEvent.setup(); const session = client(room()); mockedClient.mockReturnValue(session);
+    window.history.replaceState({}, "", "/?room=ABC234"); render(tree());
+    const dialog = document.querySelector("dialog.settings-dialog")!;
+    expect(dialog).not.toHaveAttribute("open");
+    expect(screen.queryByRole("radiogroup", { name: "Room theme" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+    expect(dialog).toHaveAttribute("open");
+    const panel = within(dialog as HTMLElement);
+    expect(panel.getByRole("heading", { name: "Settings" })).toBeInTheDocument();
+    await user.click(panel.getByRole("radio", { name: "Detective theme" }));
+    expect(session.setTheme).toHaveBeenCalledExactlyOnceWith("detective");
+    expect(panel.getByRole("checkbox", { name: /Pause artwork animations/ })).not.toBeChecked();
+    await user.click(panel.getByRole("button", { name: "Done" }));
+    expect(dialog).not.toHaveAttribute("open");
+    expect(screen.getByRole("heading", { name: "Prepare your debate" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Preview themes in Settings/ }));
+    expect(dialog).toHaveAttribute("open");
+    await user.click(within(dialog as HTMLElement).getByRole("button", { name: "Close settings" }));
+    expect(dialog).not.toHaveAttribute("open");
   });
 
   it("creates a room and exposes independently owned setup and readiness", async () => {
@@ -76,6 +99,20 @@ describe("Public Stage 5 application", () => {
     await user.click(screen.getByRole("button", { name: "Regenerate plan once" })); expect(session.planDebate).toHaveBeenCalledExactlyOnceWith(2, true);
     await user.click(screen.getByRole("button", { name: "Start debate" })); expect(session.startLawyerDebate).toHaveBeenCalledExactlyOnceWith(2, 1);
     expect(session.startDebate).not.toHaveBeenCalled();
+  });
+
+  it("opens the Settings popup from a running debate without leaving the courtroom", async () => {
+    const user = userEvent.setup(); mockedClient.mockReturnValue(client(room(active(), { themeLocked: true }))); render(tree());
+    const dialog = document.querySelector("dialog.settings-dialog")!;
+    await user.click(screen.getByRole("button", { name: /Settings · Courtroom/ }));
+    expect(dialog).toHaveAttribute("open");
+    for (const card of within(dialog as HTMLElement).getAllByRole("radio")) expect(card).toBeDisabled();
+    expect(within(dialog as HTMLElement).getByText(/The debate has started, so its theme is locked/)).toBeInTheDocument();
+    await user.click(within(dialog as HTMLElement).getByRole("button", { name: "Close settings" }));
+    expect(dialog).not.toHaveAttribute("open");
+    await user.click(screen.getByRole("button", { name: "Display settings" }));
+    expect(dialog).toHaveAttribute("open");
+    expect(screen.getByRole("timer", { name: "Player A: 47 seconds remaining" })).toBeInTheDocument();
   });
 
   it("uses Stage 5 clocks, public presentations and a separate private consultation action", async () => {
