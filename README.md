@@ -1,90 +1,157 @@
-# quarrel.io — Stage 2
+# quarrel.io — Stage 5: Lawyer Sidekicks
 
-A tropical pixel-art courtroom with private two-player rooms, built with Next.js App Router, TypeScript, Tailwind, Supabase PostgreSQL and Realtime. Stage 2 stops at a **both-ready confirmation**. No debate turns, AI, account registration, real objections/verdicts, voice or video are implemented.
+A private two-player debate game built with Next.js App Router, TypeScript, Tailwind, Supabase Cloud and Gemini. Each player develops their own position and presents arguments through a personal AI lawyer. A neutral judge summarizes each planned subtopic; a jury reviews the complete official record and can return A, B or split/inconclusive.
 
-The original Stage 1 artwork and local interaction preview are preserved at `/preview`. This standalone repository, [diamster/falls-hacks-2026-quarrel](https://github.com/diamster/falls-hacks-2026-quarrel), is the home for all future quarrel.io work. The completed Stage 2 baseline is on `main`.
+Work belongs to [diamster/falls-hacks-2026-quarrel](https://github.com/diamster/falls-hacks-2026-quarrel), on **`quarrel-stage-5`**. Do not use `main`, which contains an older baseline. Read [the original handoff](docs/stage-5-handoff.md), then [the current approved decisions](docs/stage-5-decisions.md). The latter records the updated flow and approved D1–D12. [Stage 5 testing](docs/stage-5-testing.md) distinguishes completed checks from pending acceptance work.
+
+The current public site, [falls-hacks-2026-quarrel.vercel.app](https://falls-hacks-2026-quarrel.vercel.app), still serves the earlier Stage 4 deployment. This Stage 5 work does not include a new deployment. The local Stage 5 app uses the connected Supabase Cloud project; running locally does not make its localhost invitation accessible on another computer.
 
 ## Run locally
 
-Requirements: Node.js 22.12+, npm, and a running Docker Desktop. No hosted Supabase project or external credentials are needed. First startup downloads the local Supabase containers.
+Requirements: Node.js 22.12+, npm, internet access, and the existing Cloud configuration. In an existing checkout:
 
 ```sh
-git clone https://github.com/diamster/falls-hacks-2026-quarrel.git
+git fetch origin
+git switch quarrel-stage-5
+npm ci
+```
+
+For a fresh checkout:
+
+```sh
+git clone --branch quarrel-stage-5 https://github.com/diamster/falls-hacks-2026-quarrel.git
 cd falls-hacks-2026-quarrel
 npm ci
-npm run supabase:start
-npm run supabase:env
+```
+
+**Keep an existing `.env.local`. Do not overwrite it with `.env.example`.** Only for a new checkout without that file, copy `.env.example` to `.env.local` beside `package.json`, then configure:
+
+```ini
+SUPABASE_URL=https://exjdvtqsalnkghyohyuh.supabase.co
+SUPABASE_PUBLISHABLE_KEY=your-project-publishable-key
+GEMINI_API_KEY=
+GEMINI_MODEL=gemini-3.6-flash
+JUDGE_AI_MODE=auto
+JUDGE_AI_TIMEOUT_MS=8000
+JUDGE_SERVER_SECRET=your-existing-project-server-capability
+```
+
+Use only the Supabase **publishable** key, never a secret/service-role key. `GEMINI_API_KEY` and `JUDGE_SERVER_SECRET` are server-only credentials: keep them in ignored environment configuration, never commit them, and never use a `NEXT_PUBLIC_` prefix. All instances connected to this project must reuse its registered judge capability. Do not replace it or register a new hash merely to start another checkout. `JUDGE_MAX_MESSAGES_PER_TURN` in the example config is retained for legacy Stage 4; Stage 5 uses the approved per-subtopic quotas described below.
+
+The existing Cloud project has anonymous sign-ins enabled. Its Stage 5 migration was reviewed, approved and applied without resetting historical data; see the [migration record and actual test results](docs/stage-5-testing.md). Repository migration filenames do not always match Cloud management timestamps. **Do not run an unreconciled database push, replay initial migrations, reset Cloud, or use `supabase:env` for Cloud configuration.** Inspect schema/history and show any new proposed migration to the user before applying it.
+
+A genuinely new, unregistered project can use `npm run judge:setup` to generate a capability and hash-only registration SQL after the migrations are reviewed. That helper does not apply SQL. The existing project already has a registered capability; obtain and reuse its existing setting instead. Both live and demo AI processing require that capability as well as a verified room-member session.
+
+```sh
 npm run dev
 ```
 
-Open [http://127.0.0.1:3000](http://127.0.0.1:3000). The environment helper writes only the local API URL and publishable key into ignored `.env.local`; it refuses to overwrite existing settings. Never put a service-role/secret key in the application configuration.
+Open [http://localhost:3000](http://localhost:3000). Keep one hostname consistently: `localhost` and `127.0.0.1` have separate cookies. To test both players locally, use two separate browsers or a normal and private window. Ordinary tabs share one player session.
 
-Create a room with a display name, then open its invitation in a **different browser or private browser window**. Ordinary tabs share a player session. The creator is the lion (A), the joiner is the zebra (B). Each can toggle only their own readiness. Both-ready confirms the lobby is ready; it does not start a debate.
+For production mode locally, stop the development server, run `npm run build`, then `npm run start`. Stop/restart the production server around rebuilds to avoid mismatched assets. `npm run typecheck` checks TypeScript independently. Development and production builds use Webpack. A repeated Turbopack development refresh issue prompted this change; the final development recheck is recorded in the testing report. Docker remains optional for isolated CI/local database checks; it is not the app's selected backend.
 
-For production mode locally:
+## Play a debate
+
+1. **Create or join.** The host creates a private room and shares the six-character code or invitation. The room has exactly two seats. New rooms use Courtroom.
+2. **Agree on the setup.** The host enters the main topic and **2, 4, 6 or 10 minutes of writing time per player**. Each player independently writes and confirms their own position. Neither can edit the other's position. Both positions are visible before starting.
+3. **Ready and plan.** Both players choose Ready. The planner creates 2–5 shared subtopics, each with at least 30 seconds per player, summing exactly to the chosen per-player duration. Both see the saved plan. The host may regenerate once, then presses **Start debate** explicitly while both players are connected. Start locks the topic, positions, plan and theme.
+4. **Present through your lawyer.** On your turn, write a point and press **Present my argument**. Your clock stops while your lawyer prepares the presentation. The saved presentation appears for both players, then the opposing clock starts if that player still has time.
+5. **Consult privately if useful.** **Ask my lawyer privately** is a separate action. The reply stays private, does not submit an argument, and resumes your own remaining clock after processing.
+6. **Review each subtopic.** A opens odd subtopics; B opens even ones. When one player runs out of time, the other can continue. Only when both clocks reach zero does the judge save and display a neutral summary before the next subtopic.
+7. **Read the jury decision.** After the final summary, the jury reviews the full official debate and all summaries, explains both sides' reasoning and returns A, B or split/inconclusive. It evaluates the presented case, not who is factually or morally right. Demo/fallback verdicts are labelled and do not claim a live AI evaluation.
+
+AI and summary-display time is additional to the chosen writing time. The host's “4 minutes each” setting therefore does not promise a four-minute wall-clock debate. No Ask Judge chat, judge-question rounds or objection controls appear in the current flow. No AI-generated main topics, character customization, Team Mode, voice/video or account-registration screen were added.
+
+## Public arguments and private consultations
+
+| Action | Who can read it | Clock after processing | Per-player limit, per subtopic |
+| --- | --- | --- | --- |
+| **Present my argument** | Both players see the lawyer presentation. The author can expand their original official draft, hidden from the opponent. The judge/jury can review official drafts and presentations. | Opponent starts if they have time; otherwise the same player continues if they have time. | 12 presentations; 600-character input; output at most 1.5× input, capped at 900 characters. |
+| **Ask my lawyer privately** | Only the owning player and their lawyer. Never the opposing player, public transcript, judge summary or jury evidence. | The same player's remaining clock resumes. | 2 consultations; 600-character input. |
+
+Only the active verified player can use either action. Both clocks pause during model processing. Quotas reset at the next subtopic; reaching a quota neither adds time nor ends the remaining clock. Submitted history survives refresh; unsent text is local to the current tab. A private consultation does not erase an unsent official draft.
+
+Lawyers are instructed to preserve meaning and qualifications, without adding facts, evidence or new arguments. Bounded context, structured responses, validation and unchanged-text fallbacks reduce errors; they cannot guarantee that every live rewrite is semantically perfect. Original official drafts remain available to their author and to the judge/jury for comparison. Private consultations are excluded from that evidence.
+
+## Courtroom, history and Settings
+
+The pixel-art arena preserves the four existing environments, players and judges, with new original lawyers and jurors for each theme. Public messages appear chronologically beside the courtroom on desktop. The history follows new messages unless you are reviewing older entries; a jump-to-latest control returns to the end. On narrow screens, use the collapsible history panel. The composer and private consultation record remain separate from that shared transcript.
+
+Open **Settings** from the navigation or room. All four themes have preview cards:
+
+| Theme ID | Environment | Judge |
+| --- | --- | --- |
+| `courtroom` | Traditional wooden courtroom; default for new rooms | Judge Rowan, formal and composed |
+| `jungle` | Preserved tropical court and original lion/zebra cast | Judge Moki, playful and dramatic |
+| `superhero` | Gothic rooftop and original superhero characters | Rook, witty and analytical |
+| `detective` | Monochrome office, rain and Venetian blinds | Detective Vale, observant and skeptical |
+
+The host can change a room's theme before Start; the guest can preview but cannot change it. Changes synchronize and survive refresh. Started rooms are locked. Existing rooms keep their stored theme. Invalid render IDs fall back to Courtroom; invalid writes are rejected rather than silently changing the room.
+
+Personal animation-pause, reduced-motion and text-size settings are stored only in that browser. They never pause the game clock or alter shared rules. No audio, AI-policy or gameplay settings were added. Theme configuration controls presentation and personalities; the same neutrality and evaluation rules apply to every theme. The original local-only art/state preview remains at `/preview`.
+
+## Start screen, recovery and leaving
+
+The quarrel.io logo and **Back to start** return to the welcome screen without losing the saved seat. Completed debates do not automatically replace the start screen on a plain `/` visit: choose **Resume room** to inspect them. Explicit room links restore the saved record; `/?start=1` keeps the welcome screen open. Going to Settings or the start screen does not pause a live clock.
+
+Use **Create or join another room**, then confirm **Leave room**, to start fresh in the same browser. Cancellation or failure retains your seat. Leaving detaches only your membership, preserves the historical record, and prevents another person from inheriting your departed seat. Your anonymous Auth session remains available for creating/joining a new room. Stale-tab requests carry the expected room ID and cannot mutate your newer room.
+
+Historical Stage 3/4 records remain readable as archives; the current app does not expose their obsolete Ask Judge or objection controls. A refresh restores saved Stage 5 positions, plan, clocks, public messages, owner-only consultations and verdict. Unsent drafts do not persist across a page reload.
+
+## Server authority and AI handling
+
+PostgreSQL serializes room transitions under a room lock, derives identity from `auth.uid()`, computes elapsed time from server timestamps and validates revisions, subtopics and the displayed plan generation. Browser clocks estimate server time for display; they cannot authorize a send or advance an unexpired turn. A disconnected active player's clock continues. Reconciliation uses the original deadline chain and never grants fresh time on reconnect.
+
+The server reserves idempotent work before generating, claims each job once and saves validated output before clients display it. Both browsers read the same saved public result. Realtime carries member-protected room invalidation signals, not private message bodies; authenticated snapshots filter the data for each player. Direct private-table access and mutations remain denied. The existing two-seat capacity, HttpOnly session cookies, same-origin action checks and membership protections are preserved.
+
+One Gemini engine handles planning, public lawyer presentations, private consultations, judge summaries and jury evaluation. Keys and the worker capability never reach browser code. Role-specific context excludes private consultations from public roles. Only the jury's structured result can identify an outcome. Submitted text is untrusted data; personalities affect wording, not evidence standards. Threats, abuse and coercion receive safer redirection rather than competitive judgment.
+
+`JUDGE_AI_MODE=auto` uses Gemini when configured; `demo` produces deterministic labelled responses. Failed, malformed or timed-out public lawyer output becomes the **unchanged submitted text**, labelled unedited fallback. AI timeout defaults to approximately eight seconds. Pending work also has a lease; an authorized read/heartbeat recovers expired work without another model call, and a late response cannot replace a completed result. There is no permanent background worker: progress after all clients disconnect is reconciled when a participant returns. Fallback summaries/verdicts preserve the record and identify the lack of live evaluation; fallback verdicts are split/inconclusive.
+
+Rooms expire after 24 hours; expiry is an access rule, not automatic deletion. Connection indicators use authenticated heartbeats and may show sleeping/background devices as disconnected. Realtime outages fall back to periodic refresh. The Cloud project is dedicated to quarrel: its insert/update-only publication guard also affects other tables added to that project. Do not remove the guard or weaken Auth protections to make tests pass.
+
+## Tests and verification
 
 ```sh
-npm run build
-npm run start
+npm run typecheck
+npm run check
+# Unit/component/policy/security tests, unchanged coverage gates, then production build
 ```
 
-Stop any server using the same port first. Stop/restart a production server around a rebuild to avoid serving mismatched assets. `npm run typecheck` checks TypeScript independently. The supported Webpack build remains the default from Stage 1.
-
-To stop local Supabase while retaining its local data: `npm run supabase:stop`. Restarting with `npm run supabase:start` restores it. When adding migrations to an existing local stack, run `npx supabase migration up --local`. A destructive database reset is not needed for ordinary restarts.
-
-The current review server uses [http://127.0.0.1:3001](http://127.0.0.1:3001). Local URLs are only usable on this computer; sharing across devices requires hosting the app and a reachable Supabase project. No hosted deployment was performed.
-
-## Session and room behavior
-
-- Room codes contain six cryptographically random, unambiguous uppercase letters/digits, with a unique database constraint. Treat the invitation as a private invite: anyone possessing it can claim the unfilled second seat.
-- Display names are 1–32 characters. Names and room readiness synchronize through Supabase Realtime; a ten-second heartbeat also refreshes the room as a fallback.
-- Each browser gets a Supabase anonymous Auth session through the server. There is no registration form. Access and refresh credentials use HttpOnly, SameSite=Strict cookies, with Secure on HTTPS. The short-lived access token is supplied in memory to the member's Realtime client; no refresh token or service key reaches browser JavaScript.
-- The server validates the session with Supabase Auth. PostgreSQL RPCs derive the player from `auth.uid()`, never a submitted player ID or slot. Request fields are allowlisted, cross-origin writes are rejected, and JSON bodies are limited to 1 KB while streaming.
-- RLS allows authenticated members to read only their room and its players. Direct table mutations are denied, including changing your own row. Narrow RPCs enforce the allowed operations. A row lock and database constraints serialize competing joins; exactly two seats exist.
-- Connection status reflects an authenticated heartbeat within 35 seconds. A stopped/closed client normally appears disconnected within about 45 seconds after the last heartbeat. Sleeping devices/background timer throttling can also appear disconnected. Realtime transport failure falls back to heartbeat refreshes, with an explicit status message.
-- Readiness is retained across refreshes/disconnections, but both-ready confirmation requires both players to be currently connected. A disconnected player's seat stays reserved; a third player cannot take it.
-- Rooms expire after 24 hours. Sessions survive ordinary refreshes and server restarts. Clearing browser cookies or an invalid/revoked session loses that seat; a name/code is not enough to impersonate its owner. Temporary Auth outages preserve recovery cookies.
-- One active room per anonymous session. No leave/kick/spectator controls are implemented in Stage 2. Expired room data and test anonymous users remain in the local database; future hosted operations need a retention/cleanup policy.
-
-This migration assumes a **dedicated quarrel Supabase project**. It restricts the `supabase_realtime` publication to inserts/updates for the entire project, because Supabase Postgres Changes does not apply RLS to DELETE events. This prevents deleted room metadata from leaking. Review that publication-wide setting before applying the migration to a shared project.
-
-Hosted configuration would use `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` in server environment variables, anonymous sign-ins enabled, the migration applied, and HTTPS. Public deployment also needs suitable anonymous-sign-in abuse/rate limits; local configuration is for development. No hosted security, proxy, or cross-device testing is claimed here.
-
-## Tests
+For authorized Cloud integration checks after the reviewed migration is applied, start the app on the port expected by the suite, then use the explicit remote opt-in:
 
 ```sh
-npm run check           # Stage 1 + 2 unit/component/API tests, coverage gate, build
-npm run test:db         # real PostgreSQL policies and constraints (pgTAP)
-npm run test:supabase   # real Auth, concurrent joins, RLS, Realtime, disconnect
+QUARREL_ALLOW_REMOTE_TESTS=true npm run test:supabase
+QUARREL_ALLOW_REMOTE_TESTS=true npm run test:api
+QUARREL_ALLOW_REMOTE_TESTS=true npm run test:leave
+QUARREL_ALLOW_REMOTE_TESTS=true npm run test:lawyer
 ```
 
-For actual application route tests, first run the built app on port 3001 in another terminal:
+Check each suite's `QUARREL_TEST_URL` default before running. These tests target the backend configured in `.env.local`, even when the website is localhost. They create synthetic anonymous users/rooms in the authorized development project; do not point them at an unrelated database or reset existing data. Legacy `test:debate` and `test:judge` check earlier-stage compatibility, not the new Stage 5 flow. `test:judge:live` is a separately opted-in earlier-stage live Gemini check; passing it alone does not verify the new roles. `test:db` and the GitHub Actions database job use isolated local Supabase, not the selected Cloud backend.
 
-```sh
-npx next start --hostname 127.0.0.1 --port 3001
-npm run test:api
-```
+Recorded verification: the full coverage suite passed **539 tests**, with **5 opt-in skips**; the later Unicode-boundary API run passed **176 tests**. Cloud database checks, the 10-check Stage 5 HTTP/Realtime suite and isolated-session desktop/mobile browser flow passed. Live Gemini plans, lawyer presentations and a judge summary were observed, but provider HTTP 429 responses prevented confirmation of a live jury result; the full flow recovered with a labelled fallback verdict. The final production rebuild and Webpack development-browser recheck also passed.
 
-Set `QUARREL_TEST_URL=http://127.0.0.1:3000` to test another local port. The integration tests create disposable anonymous users/rooms in local Supabase, never print session tokens, and do not reset existing rooms. The Realtime test deliberately waits 36 seconds to verify disconnection. Allow the first container startup to settle before running it.
-
-`npm test` runs once; `npm run test:watch` watches changes. `npm run test:coverage` generates `coverage/index.html` and enforces the existing 90% statement/function/line and 85% branch gates. These tests do not replace browser inspection. See [the Stage 2 results and manual checklist](docs/testing-stage-2.md) and [the preserved Stage 1 record](docs/testing.md).
-
-GitHub Actions runs the build, regression suite and local Supabase integration tests using Docker. No production credentials or deployment are involved. The existing workflow filename remains `.github/workflows/quarrel-stage-1-checks.yml` for continuity.
+The existing coverage gates remain 90% statements/functions/lines and 85% branches. Mocked and jsdom tests do not establish real browser layout, genuine Cloud Realtime, elapsed deadline behavior or live AI quality. See [Stage 5 testing](docs/stage-5-testing.md) for actual results, pending checks and limitations. Earlier reports remain available: [Stage 4](docs/stage-4-testing.md), [Stage 3](docs/stage-3-testing.md), [Cloud setup](docs/stage-2-5-cloud.md), [Stage 2.5](docs/stage-2-5-testing.md), [Stage 2](docs/testing-stage-2.md), and [Stage 1](docs/testing.md).
 
 ## Files
 
 | Location | Responsibility |
 | --- | --- |
-| `src/components/multiplayer-app.tsx` | Create/join, invitations, two seats, readiness and confirmation |
-| `src/lib/room-client.ts`, `room-types.ts` | Typed room transport, serialized requests, Realtime and recovery |
-| `src/app/api/rooms/`, `src/server/room-api.ts` | Session-authorized Next.js routes, validation and cookies |
-| `supabase/migrations/` | Tables, constraints, RLS, membership RPCs and publication |
-| `supabase/tests/database/`, `tests/db/` | Real database, Supabase and HTTP integration tests |
-| `src/app/preview/`, `src/components/quarrel-app.tsx` | Original local-only Stage 1 preview |
-| `src/components/pixel-art.tsx` | Unchanged original lion, zebra, lemur, jungle and bench artwork |
-| `src/components/courtroom.tsx`, `character.tsx` | Reused scene with optional real names/code; Stage 1 defaults retained |
-| `tests/` | Component, transport and server validation/security tests |
+| `src/components/stage-five-app.tsx` | Current start screen, lobby, Stage 5 composition and read-only legacy archives |
+| `src/components/room-controls.tsx` | Shared room creation/joining, readiness, invitation and leave controls without a circular app import |
+| `src/components/lawyer-debate.tsx` | Independent positions, timed plan preview, dual clocks, public/private inputs and jury result |
+| `src/components/debate-history-panel.tsx` | Sticky desktop transcript, mobile collapse and manual-reading-aware scrolling |
+| `src/app/settings/`, `src/components/settings-page.tsx` | Dedicated theme previews and host-only pre-start selection |
+| `src/components/display-preferences.tsx` | Browser-local animation/motion/text settings |
+| `src/lib/lawyer-types.ts` | Stage 5 snapshot, jobs, messages, plan, verdict and clock contracts |
+| `src/server/lawyer-policy.ts` | Shared role instructions, structured contracts, bounded context and deterministic results |
+| `src/server/judge-engine.ts`, `judge-worker.ts` | Existing Gemini engine extended with Stage 5 roles and single-claim work |
+| `src/app/api/rooms/lawyer/`, `src/server/room-api.ts` | Verified-member Stage 5 routes and input validation |
+| `src/lib/room-client.ts`, `room-types.ts` | Shared request transport, Realtime, heartbeat and recovery |
+| `src/themes/` | All four original theme definitions and new lawyer/jury art/personality configuration |
+| `supabase/migrations/20261107215110_stage5_lawyer_debate.sql` | Additive Stage 5 private state, authorized RPCs and safe new-room default |
+| `supabase/tests/database/lawyer.test.sql`, `tests/db/lawyer.cloud.sql` | Stage 5 database authorization, privacy, clocks and transition checks |
+| `tests/` | Current and preserved component, server, policy, transport and integration checks |
+| `src/app/preview/`, `src/components/pixel-art.tsx` | Original local preview and preserved Jungle artwork |
 
-Original pixel-art notes: [ART.md](public/art/ART.md). Fonts and artwork remain bundled locally. Keyboard controls, live feedback, responsive layout, pause and reduced-motion styles are preserved.
-
-Implementation references: [Supabase anonymous sessions](https://supabase.com/docs/guides/auth/auth-anonymous), [row-level security](https://supabase.com/docs/guides/database/postgres/row-level-security), and [Postgres Changes / DELETE behavior](https://supabase.com/docs/guides/realtime/postgres-changes#receiving-old-records).
+Stable player IDs and solo-only mode metadata remain preparation for later stages; no customization or teams are enabled. Fonts and original SVG artwork are bundled locally; see [art notes](public/art/ART.md). New theme-specific sidekick art is in `src/themes/art/sidekicks.tsx`.

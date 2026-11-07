@@ -1,2 +1,2 @@
-import { MultiplayerApp } from "@/components/multiplayer-app";
-export default function Page() { return <MultiplayerApp />; }
+import { StageFiveApp } from "@/components/stage-five-app";
+export default function Page() { return <StageFiveApp />; }

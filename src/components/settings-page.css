@@ -1,0 +1,26 @@
+.settings-content {padding-bottom:36px;max-width:1280px;}
+.settings-introduction {max-width:720px;margin-bottom:28px;}
+.settings-introduction h1 {font-family:var(--font-pixel);font-size:42px;line-height:1.1;margin:5px 0 12px;}
+.settings-introduction>p:last-child {font-size:14px;line-height:1.7;color:var(--muted);}
+.settings-section-label {display:flex;align-items:baseline;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:12px;}
+.settings-section-label h2 {font-family:var(--font-pixel);font-size:27px;}
+.settings-section-label>span {font-size:11px;color:var(--muted);}
+.settings-room {margin-bottom:28px;}
+.settings-room .theme-selector {margin-bottom:12px;}
+.settings-help {font-size:12px;line-height:1.7;color:var(--muted);margin-top:8px;}
+.settings-status {padding:24px;font-size:14px;}
+.settings-personal {max-width:850px;}
+.settings-body {padding:22px;display:grid;gap:20px;}
+.settings-body>p {font-size:13px;line-height:1.7;color:var(--muted);}
+.settings-checkbox,.settings-select {display:flex;align-items:flex-start;gap:13px;padding-bottom:20px;border-bottom:1px solid var(--line);}
+.settings-checkbox {cursor:pointer;}
+.settings-checkbox input {width:20px;height:20px;margin-top:3px;flex:none;accent-color:var(--theme-secondary);}
+.settings-checkbox input:focus-visible {outline:3px solid var(--theme-secondary);outline-offset:4px;}
+.settings-body strong {display:block;font-size:14px;font-weight:750;}
+.settings-body small {display:block;font-size:12px;line-height:1.6;color:var(--muted);margin-top:4px;}
+.settings-select {align-items:center;justify-content:space-between;}
+.settings-select select {background:var(--paper);color:var(--ink);border:1px solid var(--ink);padding:10px 32px 10px 12px;font-size:14px;min-height:44px;}
+.settings-select select:focus-visible {outline-color:var(--theme-secondary);}
+.settings-body .settings-save-note {font-size:11px;margin:0;}
+.settings-return {display:inline-flex;margin-top:24px;}
+@media(max-width:600px){.settings-introduction h1{font-size:36px}.settings-introduction{margin-bottom:23px}.settings-body{padding:17px;gap:18px}.settings-select{align-items:stretch;flex-direction:column}.settings-select select{width:100%;font-size:16px}.settings-return{width:100%;justify-content:center}.settings-shell .header-inner{gap:10px}.settings-shell .header-inner nav{gap:14px;font-size:10px}.settings-shell .brand{font-size:26px}.settings-shell .brand-mark{width:27px;height:27px}.settings-shell .brand-mark .pixel-icon{width:17px;height:17px}}

@@ -1,4 +1,4 @@
-name: quarrel.io Stage 1 and 2 checks
+name: quarrel.io Stage 1–5 checks
 
 on:
   push:
@@ -9,9 +9,11 @@ permissions:
   contents: read
 
 jobs:
-  stage-1-and-2:
+  stages-1-through-5:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      JUDGE_AI_MODE: demo
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -24,6 +26,11 @@ jobs:
       - name: Start local Supabase
         run: npm run supabase:start > /tmp/quarrel-supabase-start.log 2>&1
       - run: npm run supabase:env
+      - name: Register isolated CI judge capability
+        run: |
+          npm run judge:setup -- --sql-out /tmp/quarrel-judge-registration.sql
+          npx supabase db query --file /tmp/quarrel-judge-registration.sql
+          rm /tmp/quarrel-judge-registration.sql
       - run: npm run test:db
       - name: Start application for integration tests
         run: |
@@ -31,6 +38,19 @@ jobs:
           curl -fsS --retry 20 --retry-connrefused --retry-delay 1 http://127.0.0.1:3001/api/rooms/session > /dev/null
       - run: npm run test:api
       - run: npm run test:supabase
+      - run: npm run test:debate
+      - name: Exercise Stage 4 shared judge in demo mode
+        env:
+          QUARREL_TEST_URL: http://127.0.0.1:3001
+        run: npm run test:judge
+      - name: Verify same-browser room changes
+        env:
+          QUARREL_TEST_URL: http://127.0.0.1:3001
+        run: npm run test:leave
+      - name: Verify Stage 5 lawyer flow, clocks and private consultations
+        env:
+          QUARREL_TEST_URL: http://127.0.0.1:3001
+        run: npm run test:lawyer
       - name: Stop local Supabase
         if: always()
         run: npm run supabase:stop > /tmp/quarrel-supabase-stop.log 2>&1

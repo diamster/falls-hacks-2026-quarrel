@@ -1,0 +1,9 @@
+.stage-five-setting {display:flex;justify-content:space-between;align-items:center;gap:1rem;padding:.85rem 0 1.1rem;font-size:.9rem;}
+.stage-five-setting a {display:inline-flex;align-items:center;gap:.5rem;font-weight:700;text-underline-offset:4px;}
+.stage-five-setting svg {width:1rem;height:1rem;}
+.stage-five-room-details {margin-top:1.5rem;}
+.stage-five-room-details > summary {cursor:pointer;padding:1rem;border:2px solid var(--border);background:var(--paper);font-weight:700;}
+.stage-five-room-details .room-panel {margin-top:1rem;max-width:36rem;}
+.stage-five-legacy {padding:1.25rem;margin-bottom:1.5rem;}
+.stage-five-legacy h2 {font-family:var(--font-pixel);font-size:1.8rem;}
+@media(max-width:600px){.stage-five-setting{align-items:flex-start;flex-direction:column;}.stage-five-shell .site-header nav{gap:.6rem;}.stage-five-shell .site-header nav a{font-size:.8rem;}}

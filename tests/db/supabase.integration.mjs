@@ -36,7 +36,12 @@ try {
   const room = await rpc(a.client, "create_quarrel_room", { p_name: "Integration Lion" });
   assert.match(room.code, /^[A-HJ-NP-Z2-9]{6}$/);
   assert.equal(room.you, "A");
-  pass("Creator receives a six-character code and slot A.");
+  assert.equal(room.themeId, "courtroom");
+  assert.equal(room.themeLocked, false);
+  assert.equal(room.mode, "solo");
+  assert.equal(room.capacity, 2);
+  pass("Creator receives a six-character code, slot A, default Courtroom, and solo capacity two.");
+  await rpc(a.client, "set_quarrel_theme", { p_theme_id: "superhero" });
 
   const race = await Promise.all([b, c].map(p => p.client.rpc("join_quarrel_room", {
     p_code: room.code, p_name: "Integration Zebra"
@@ -50,7 +55,8 @@ try {
   const joined = await rpc(winner.client, "get_quarrel_room");
   assert.equal(joined.you, "B");
   assert.deepEqual(joined.players.map(p => p.name), ["Integration Lion", "Integration Zebra"]);
-  pass("Both player names and slots are persisted.");
+  assert.equal(joined.themeId, "superhero");
+  pass("Both player names and slots persist; joiner receives the host's selected theme.");
 
   const outsiderRows = await outsider.client.from("quarrel_players").select("*").eq("room_id", room.id);
   assert.equal(outsiderRows.error, null);
@@ -62,7 +68,8 @@ try {
   pass("RLS hides participants from outsiders; unauthenticated room reads fail.");
 
   let received = false;
-  const subscription = a.client.channel(`integration-${room.id}`)
+  // SUBSCRIBED must mean Postgres registration is active, not just socket join.
+  const subscription = a.client.channel(`integration-${room.id}`, { config: { postgres_changes_options: { wait: true, timeout: 10000 } } })
     .on("postgres_changes", { event: "UPDATE", schema: "public", table: "quarrel_players", filter: `room_id=eq.${room.id}` },
       payload => { if (payload.new.slot === "B" && payload.new.ready === true) received = true; });
   await new Promise((resolve, reject) => {
@@ -88,12 +95,46 @@ try {
   assert.equal((await rpc(a.client, "set_quarrel_ready", { p_ready: true })).bothReady, true);
   pass("Both ready produces a shared start confirmation.");
 
-  const recovered = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
-  clients.push(recovered);
-  const restored = await recovered.auth.setSession({ access_token: a.session.access_token, refresh_token: a.session.refresh_token });
-  assert.equal(restored.error, null);
-  assert.equal((await rpc(recovered, "get_quarrel_room")).you, "A");
-  pass("The existing Supabase session recovers its original slot in a fresh client.");
+  let receivedTheme = "";
+  const themeSubscription = winner.client.channel(`integration-theme-${room.id}`, { config: { postgres_changes_options: { wait: true, timeout: 10000 } } })
+    .on("postgres_changes", { event: "UPDATE", schema: "public", table: "quarrel_rooms", filter: `id=eq.${room.id}` },
+      payload => { receivedTheme = payload.new.theme_id; });
+  await new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error("Theme Realtime subscribe timed out")), 15000);
+    themeSubscription.subscribe(status => {
+      if (status === "SUBSCRIBED") { clearTimeout(timeout); resolve(); }
+      if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") { clearTimeout(timeout); reject(new Error(`Theme Realtime ${status}`)); }
+    });
+  });
+  for (const themeId of ["detective", "courtroom", "jungle", "superhero"]) {
+    const changed = await rpc(a.client, "set_quarrel_theme", { p_theme_id: themeId });
+    assert.equal(changed.themeId, themeId);
+    assert.equal(changed.bothReady, true, "A ready lobby must remain editable and preserve readiness.");
+    assert.equal(changed.players.length, 2);
+    const untilTheme = Date.now() + 10000;
+    while (receivedTheme !== themeId && Date.now() < untilTheme) await new Promise(resolve => setTimeout(resolve, 100));
+    assert.equal(receivedTheme, themeId, "B must receive the host's theme update through Supabase Realtime.");
+    assert.equal((await rpc(winner.client, "get_quarrel_room")).themeId, themeId);
+    pass(`Host selects ${themeId}; B receives its actual room-table Realtime change and both stay ready.`);
+  }
+  assert.equal((await winner.client.rpc("set_quarrel_theme", { p_theme_id: "courtroom" })).error?.message, "HOST_ONLY");
+  assert.equal((await outsider.client.rpc("set_quarrel_theme", { p_theme_id: "courtroom" })).error?.message, "ROOM_NOT_FOUND");
+  assert.equal((await a.client.rpc("set_quarrel_theme", { p_theme_id: "invalid-theme" })).error?.message, "INVALID_THEME");
+  assert.ok((await winner.client.from("quarrel_rooms").update({ theme_id: "courtroom", theme_locked: false }).eq("id", room.id)).error);
+  assert.ok((await winner.client.rpc("set_quarrel_theme", { p_theme_id: "courtroom", p_slot: "A" })).error);
+  assert.equal((await rpc(winner.client, "get_quarrel_room")).themeId, "superhero");
+  pass("Guest, outsider, invalid-ID, direct room update and forged-host theme mutations are denied.");
+
+  for (const [playerSession, expectedSlot] of [[a.session, "A"], [winner.session, "B"]]) {
+    const recovered = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+    clients.push(recovered);
+    const restored = await recovered.auth.setSession({ access_token: playerSession.access_token, refresh_token: playerSession.refresh_token });
+    assert.equal(restored.error, null);
+    const recoveredRoom = await rpc(recovered, "get_quarrel_room");
+    assert.equal(recoveredRoom.you, expectedSlot);
+    assert.equal(recoveredRoom.themeId, "superhero");
+  }
+  pass("Both Supabase sessions recover their original slots and persisted theme in fresh clients.");
 
   const invalid = await outsider.client.rpc("join_quarrel_room", { p_code: "bad", p_name: "Invalid" });
   assert.equal(invalid.error?.message, "INVALID_CODE");

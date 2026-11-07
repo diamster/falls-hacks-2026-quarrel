@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --hostname 127.0.0.1 --port 3000",
+    "dev": "next dev --webpack --hostname 127.0.0.1 --port 3000",
     "build": "next build --webpack",
     "start": "next start --hostname 127.0.0.1 --port 3000",
     "typecheck": "tsc --noEmit",
@@ -11,12 +11,18 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "check": "npm run test:coverage && npm run build",
-    "supabase:start": "supabase start -x studio,imgproxy,inbucket,storage-api,edge-runtime,logflare,vector,supavisor",
+    "supabase:start": "supabase start -x studio,imgproxy,mailpit,storage-api,edge-runtime,logflare,vector,supavisor",
     "supabase:stop": "supabase stop",
     "supabase:env": "node scripts/local-env.mjs",
+    "judge:setup": "node scripts/judge-config.mjs",
     "test:db": "supabase test db",
     "test:supabase": "node --env-file-if-exists=.env.local tests/db/supabase.integration.mjs",
-    "test:api": "node --env-file-if-exists=.env.local tests/db/api.integration.mjs"
+    "test:api": "node --env-file-if-exists=.env.local tests/db/api.integration.mjs",
+    "test:leave": "node --env-file-if-exists=.env.local tests/db/leave.integration.mjs",
+    "test:debate": "node --env-file-if-exists=.env.local tests/db/debate.integration.mjs",
+    "test:judge": "node --env-file-if-exists=.env.local tests/db/judge.integration.mjs",
+    "test:judge:live": "node --env-file-if-exists=.env.local node_modules/vitest/vitest.mjs run tests/judge-live.test.ts",
+    "test:lawyer": "node --env-file-if-exists=.env.local tests/db/lawyer.integration.mjs"
   },
   "engines": {
     "node": ">=22.12.0"
@@ -27,7 +33,8 @@
     "@supabase/supabase-js": "^2.119.0",
     "next": "^16.4.5",
     "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "react-dom": "^19.3.1",
+    "server-only": "0.0.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.5",
