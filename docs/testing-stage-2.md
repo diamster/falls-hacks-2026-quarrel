@@ -58,3 +58,11 @@ Saved evidence: [desktop lobby](screenshots/stage2-desktop.png) and [mobile lobb
 - Review found temporary Auth errors could clear recovery cookies. The server now retains cookies on network/server/rate-limit errors; regression tests cover returned errors as well as thrown failures.
 - Realtime DELETE events do not honor row-level read policies. The dedicated project publication now publishes inserts/updates only, verified by PostgreSQL tests. Applying this setting to a shared Supabase project would affect that project's other realtime tables.
 - Successful coverage and source tests do not establish visual quality, production security certification or native cross-browser compatibility. GitHub Actions configuration is included; its remote execution result is not claimed here.
+
+## Standalone repository migration — November 7, 2026
+
+The completed Stage 2 project moved to `diamster/falls-hacks-2026-quarrel`, with the app at the repository root. The three quarrel-only commits were retained through history extraction; the destination's initial commit and MIT license were preserved. No campus source/history was imported. Runtime source, artwork, migrations, dependency files and tests were byte-for-byte identical to the completed Stage 2 source (`1861f4e` in the former repository). Only repository instructions, setup paths and the root-level CI workflow changed.
+
+Validation from the standalone checkout: `npm ci` succeeded; `npm run check` passed all 90 tests, unchanged coverage gates and the production build; `npm run test:db` passed 48 assertions; `npm run test:supabase` passed 10 live checks; `npm run test:api` passed against the new checkout's server at port 3001. The first live Realtime run timed out while the production build was running and the local service was starting its subscription processing; an unchanged retry after the build completed passed. No timeout or assertion was weakened.
+
+Browser inspection of the migrated build passed at 1440 × 1000 and 390 × 844, without horizontal overflow or unexpected console warnings/errors. The preserved `/preview` page and navigation back to the Stage 2 lobby loaded correctly. The earlier browser-engine/hosting limits above remain applicable; this was a repository migration, not a new feature stage or hosted deployment. Local Supabase data was reused and `.env.local` remains ignored.
