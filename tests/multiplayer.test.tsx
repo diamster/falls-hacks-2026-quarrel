@@ -19,6 +19,8 @@ const socket = vi.hoisted(() => ({
   disconnect: vi.fn(),
   filters: [] as unknown[],
   changesByTable: {} as Record<string, () => void>,
+  channels: [] as { topic: string; options: unknown }[],
+  autoSubscribe: true,
 }));
 vi.mock("@supabase/supabase-js", () => ({
   createClient: vi.fn(() => {
@@ -31,14 +33,17 @@ vi.mock("@supabase/supabase-js", () => ({
       }),
       subscribe: vi.fn((callback: (status: string) => void) => {
         socket.status = callback;
-        queueMicrotask(() => callback("SUBSCRIBED"));
+        if (socket.autoSubscribe) queueMicrotask(() => callback("SUBSCRIBED"));
         return channel;
       }),
       unsubscribe: socket.unsubscribe,
     };
     return {
       realtime: { setAuth: socket.setAuth, disconnect: socket.disconnect },
-      channel: vi.fn(() => channel),
+      channel: vi.fn((topic: string, options: unknown) => {
+        socket.channels.push({ topic, options });
+        return channel;
+      }),
       removeChannel: socket.removeChannel,
       removeAllChannels: socket.removeAllChannels,
     };
@@ -77,6 +82,8 @@ beforeEach(() => {
   socket.status = undefined;
   socket.filters = [];
   socket.changesByTable = {};
+  socket.channels = [];
+  socket.autoSubscribe = true;
   window.history.replaceState({}, "", "/");
   fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async () => json(response(current)));
 });
@@ -334,6 +341,37 @@ describe("Stage 2 input and transport boundaries", () => {
 });
 
 describe("Stage 2 connection recovery", () => {
+  it("waits for Postgres registration and refreshes changes made before connection or reconnection", async () => {
+    socket.autoSubscribe = false;
+    current = room({ themeId: "jungle" });
+    const view = renderHook(() => useRoomClient());
+    await waitFor(() => expect(socket.status).toBeDefined());
+    expect(socket.channels).toEqual([{
+      topic: `room:${current.id}`,
+      options: { config: { postgres_changes_options: { wait: true, timeout: 10_000 } } },
+    }]);
+    expect(view.result.current.live).toBe(false);
+    expect(view.result.current.room?.themeId).toBe("jungle");
+    const reads = () => fetchMock.mock.calls.filter(([path]) => path === "/api/rooms/session").length;
+    const before = reads();
+    // This update happens while the subscription is registering: no change event
+    // reaches the client, so the confirmation must trigger a fresh snapshot.
+    current = { ...current!, themeId: "detective" };
+    await act(async () => socket.status!("SUBSCRIBED"));
+    await waitFor(() => expect(view.result.current.room?.themeId).toBe("detective"));
+    expect(view.result.current.live).toBe(true);
+    expect(reads()).toBe(before + 1);
+    act(() => socket.status!("CHANNEL_ERROR"));
+    expect(view.result.current.live).toBe(false);
+    current = { ...current!, themeId: "courtroom" };
+    await act(async () => socket.status!("SUBSCRIBED"));
+    await waitFor(() => expect(view.result.current.room?.themeId).toBe("courtroom"));
+    expect(reads()).toBe(before + 2);
+    view.unmount();
+    act(() => socket.status!("SUBSCRIBED"));
+    expect(reads()).toBe(before + 2);
+  });
+
   it("heartbeats every ten seconds and responds to browser connection and visibility changes", async () => {
     vi.useFakeTimers();
     current = room();

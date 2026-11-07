@@ -120,10 +120,16 @@ export function useRoomClient() {
     };
     void client.realtime.setAuth(realtime.accessToken).then(() => {
       if (disposed) return;
-      client.channel(`room:${roomId}`)
+      // A socket join can precede Postgres registration. Report live only after
+      // the database subscription is active, then close the snapshot/listen gap.
+      client.channel(`room:${roomId}`, { config: { postgres_changes_options: { wait: true, timeout: 10_000 } } })
         .on("postgres_changes", { event: "*", schema: "public", table: "quarrel_players", filter: `room_id=eq.${roomId}` }, resync)
         .on("postgres_changes", { event: "UPDATE", schema: "public", table: "quarrel_rooms", filter: `id=eq.${roomId}` }, resync)
-        .subscribe((status) => { if (!disposed) setLive(status === "SUBSCRIBED"); });
+        .subscribe((status) => {
+          if (disposed) return;
+          setLive(status === "SUBSCRIBED");
+          if (status === "SUBSCRIBED") resync();
+        });
     }).catch(() => { if (!disposed) setLive(false); });
     return () => { disposed = true; setLive(false); void client.removeAllChannels(); };
   }, [roomId, realtime?.url, realtime?.key, realtime?.accessToken, refresh]);

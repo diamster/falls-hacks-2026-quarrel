@@ -2,6 +2,8 @@
 
 Completed November 7, 2026 against local Supabase and the production app at `http://127.0.0.1:3001`. Earlier evidence remains in [Stage 1](testing.md) and [Stage 2](testing-stage-2.md).
 
+November 7 follow-up: the app is moving to the authorized Supabase Cloud development project. See [Cloud setup and verification](stage-2-5-cloud.md) for that separate connection/testing record. The local-only results below remain unchanged historical evidence.
+
 Scope: four themes in the existing private two-player application. Player A selects a persisted lobby theme; Player B receives it through the existing Realtime connection. Both-ready remains a confirmation only. No actual start, debate turns, AI, real objections/verdicts, character customization or team mode is implemented.
 
 ## Completed service checks — November 7, 2026

@@ -68,7 +68,8 @@ try {
   pass("RLS hides participants from outsiders; unauthenticated room reads fail.");
 
   let received = false;
-  const subscription = a.client.channel(`integration-${room.id}`)
+  // SUBSCRIBED must mean Postgres registration is active, not just socket join.
+  const subscription = a.client.channel(`integration-${room.id}`, { config: { postgres_changes_options: { wait: true, timeout: 10000 } } })
     .on("postgres_changes", { event: "UPDATE", schema: "public", table: "quarrel_players", filter: `room_id=eq.${room.id}` },
       payload => { if (payload.new.slot === "B" && payload.new.ready === true) received = true; });
   await new Promise((resolve, reject) => {
@@ -95,7 +96,7 @@ try {
   pass("Both ready produces a shared start confirmation.");
 
   let receivedTheme = "";
-  const themeSubscription = winner.client.channel(`integration-theme-${room.id}`)
+  const themeSubscription = winner.client.channel(`integration-theme-${room.id}`, { config: { postgres_changes_options: { wait: true, timeout: 10000 } } })
     .on("postgres_changes", { event: "UPDATE", schema: "public", table: "quarrel_rooms", filter: `id=eq.${room.id}` },
       payload => { receivedTheme = payload.new.theme_id; });
   await new Promise((resolve, reject) => {

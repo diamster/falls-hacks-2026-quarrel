@@ -25,7 +25,7 @@ class RoomError extends Error {
 function config() {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_PUBLISHABLE_KEY;
-  if (!url || !key) throw new RoomError(503, "Rooms are not configured yet. Start local Supabase and run the local setup command.");
+  if (!url || !key) throw new RoomError(503, "Rooms are not configured yet. Complete the Supabase setup in the README, then restart the app.");
   return { url, key };
 }
 

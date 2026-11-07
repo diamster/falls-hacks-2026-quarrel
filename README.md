@@ -4,20 +4,32 @@ Four original pixel-art settings for private two-player rooms, built with Next.j
 
 The original Stage 1 artwork and local interaction preview are preserved at `/preview`. This standalone repository, [diamster/falls-hacks-2026-quarrel](https://github.com/diamster/falls-hacks-2026-quarrel), is the home for all future quarrel.io work. The completed Stage 2 baseline remains on `main`; Stage 2.5 extends the same application on `quarrel-stage-2-5`.
 
-## Run locally
+## Run locally with Supabase Cloud
 
-Requirements: Node.js 22.12+, npm, and a running Docker Desktop. No hosted Supabase project or external credentials are needed. First startup downloads the local Supabase containers.
+The app now targets the quarrel Cloud project `exjdvtqsalnkghyohyuh`. The Next.js website still runs on your computer; this does not publish the website. Requirements: Node.js 22.12+, npm, internet access, and this project's **publishable** API key. Docker is only needed for the optional local database/CI workflow below.
 
 ```sh
 git clone --branch quarrel-stage-2-5 https://github.com/diamster/falls-hacks-2026-quarrel.git
 cd falls-hacks-2026-quarrel
 npm ci
-npm run supabase:start
-npm run supabase:env
+```
+
+Create `.env.local` next to `package.json`:
+
+```ini
+SUPABASE_URL=https://exjdvtqsalnkghyohyuh.supabase.co
+SUPABASE_PUBLISHABLE_KEY=your-project-publishable-key
+```
+
+Copy only the publishable key from [the project's API Keys page](https://supabase.com/dashboard/project/exjdvtqsalnkghyohyuh/settings/api-keys). Never put a secret or service-role key in the app configuration. `.env.local` is ignored by Git and must not be committed. Restart the app after changing it; do not run `supabase:env` to configure Cloud, because that helper generates local settings.
+
+The Cloud project needs anonymous sign-ins enabled in [Authentication Providers](https://supabase.com/dashboard/project/exjdvtqsalnkghyohyuh/auth/providers), both repository migrations applied, and the member-protected Realtime publication. See [Cloud setup and verification](docs/stage-2-5-cloud.md) before making database changes: this project has existing migration history, so do not reapply the initial schema or blindly run a database push.
+
+```sh
 npm run dev
 ```
 
-Open [http://127.0.0.1:3000](http://127.0.0.1:3000). The environment helper writes only the local API URL and publishable key into ignored `.env.local`; it refuses to overwrite existing settings. Never put a service-role/secret key in the application configuration.
+Open [http://localhost:3000](http://localhost:3000) or [http://127.0.0.1:3000](http://127.0.0.1:3000). Use one hostname consistently in each browser: they have separate cookies. Local-only room codes and sessions do not migrate to Cloud; refresh and create a new room if an old local session is rejected.
 
 Create a room with a display name, then open its invitation in a **different browser or private browser window**. Ordinary tabs share a player session. The creator is Player A and chooses the setting from the lobby’s four preview cards. The joiner is Player B and sees the host’s current setting. Jungle starts with the lion and zebra; the other themes supply their own default characters. Each player can toggle only their own readiness. Both-ready confirms the lobby is ready; it does not start a debate or lock the theme.
 
@@ -30,9 +42,20 @@ npm run start
 
 Stop any server using the same port first. Stop/restart a production server around a rebuild to avoid serving mismatched assets. `npm run typecheck` checks TypeScript independently. The supported Webpack build remains the default from Stage 1.
 
-To stop local Supabase while retaining its local data: `npm run supabase:stop`. Restarting with `npm run supabase:start` restores it. When adding migrations to an existing local stack, run `npx supabase migration up --local`. For an existing Stage 2 installation, apply this command before testing Stage 2.5: it adds the theme fields/RPC and publishes member-protected room changes. Existing rooms receive Jungle as the default. No reset or room-data deletion is required.
+## Optional local database and CI
 
-The current review server uses [http://127.0.0.1:3001](http://127.0.0.1:3001). Local URLs are only usable on this computer; sharing across devices requires hosting the app and a reachable Supabase project. No hosted deployment was performed.
+For an isolated local stack, run Docker Desktop and use:
+
+```sh
+npm run supabase:start
+npm run supabase:env
+npx supabase migration up --local
+npm run dev
+```
+
+Use a separate checkout or keep your Cloud `.env.local` safely outside the working copy before generating local settings. The helper refuses to overwrite an existing file and writes only the local API URL/publishable key. First startup downloads the local containers. `npm run supabase:stop` retains local data; `npm run supabase:start` restores it. Local migrations update the existing stack without a reset.
+
+GitHub Actions continues to use isolated local Supabase. Neither its settings nor `supabase/config.toml` configures the Cloud project. Local website URLs are only usable on this computer; a shareable public website needs its own deployment. No hosted website deployment was performed.
 
 ## Four shared settings
 
@@ -71,19 +94,22 @@ To add another theme later, extend the configuration/asset registry, add its ori
 - Connection status reflects an authenticated heartbeat within 35 seconds. A stopped/closed client normally appears disconnected within about 45 seconds after the last heartbeat. Sleeping devices/background timer throttling can also appear disconnected. Realtime transport failure falls back to heartbeat refreshes, with an explicit status message.
 - Readiness is retained across refreshes/disconnections, but both-ready confirmation requires both players to be currently connected. A disconnected player's seat stays reserved; a third player cannot take it.
 - Rooms expire after 24 hours. Sessions survive ordinary refreshes and server restarts. Clearing browser cookies or an invalid/revoked session loses that seat; a name/code is not enough to impersonate its owner. Temporary Auth outages preserve recovery cookies.
-- One active room per anonymous session. No leave/kick/spectator controls are implemented in Stage 2.5. Expired room data and test anonymous users remain in the local database; future hosted operations need a retention/cleanup policy.
+- One active room per anonymous session. No leave/kick/spectator controls are implemented in Stage 2.5. Expired room rows and anonymous test users remain in the selected database; expiry is an access rule, not automatic deletion. A future retention policy must distinguish test fixtures from real rooms.
 
 This migration assumes a **dedicated quarrel Supabase project**. It restricts the `supabase_realtime` publication to inserts/updates for the entire project, because Supabase Postgres Changes does not apply RLS to DELETE events. This prevents deleted room metadata from leaking. Review that publication-wide setting before applying the migration to a shared project.
 
-Hosted configuration would use `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` in server environment variables, anonymous sign-ins enabled, the migration applied, and HTTPS. Public deployment also needs suitable anonymous-sign-in abuse/rate limits; local configuration is for development. No hosted security, proxy, or cross-device testing is claimed here.
+Cloud uses `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` with verified anonymous player sessions and the same database authorization rules. A future public website deployment needs HTTPS and appropriate anonymous-sign-in abuse protection. Existing rate limits or CAPTCHA protections must not be disabled merely to make tests pass. Cloud connection results are recorded separately from [the earlier local-only verification](docs/stage-2-5-testing.md).
 
 ## Tests
 
 ```sh
 npm run check           # Stage 1, 2 and 2.5 tests, coverage gate, build
-npm run test:db         # real PostgreSQL policies and constraints (pgTAP)
-npm run test:supabase   # real Auth, joins, themes, RLS, Realtime and disconnect
+npm run test:db         # PostgreSQL policies/constraints on the local stack
+QUARREL_ALLOW_REMOTE_TESTS=true npm run test:supabase
+# Real Cloud Auth, joins, themes, RLS, Realtime and disconnect
 ```
+
+The remote opt-in is required when `.env.local` points at the authorized Cloud development project. For local Supabase, use `npm run test:supabase` without that flag. Do not use remote integration tests against an unrelated or production project.
 
 For actual application route tests, first run the built app on port 3001 in another terminal:
 
@@ -92,9 +118,9 @@ npx next start --hostname 127.0.0.1 --port 3001
 npm run test:api
 ```
 
-Set `QUARREL_TEST_URL=http://127.0.0.1:3000` to test another local port. The integration tests create disposable anonymous users/rooms in local Supabase, never print session tokens, and do not reset existing rooms. The Realtime test deliberately waits 36 seconds to verify disconnection. Allow the first container startup to settle before running it.
+Set `QUARREL_TEST_URL=http://127.0.0.1:3000` to test the development server instead. API tests exercise whichever Supabase backend the running app uses, even though the website URL is local. Each integration suite creates three anonymous users and one test room in that backend; users/room rows remain afterward. They never print session tokens or reset existing rooms. The Realtime suite deliberately waits 36 seconds to verify disconnection. Hosted sign-in limits can affect repeated runs; wait for the applicable limit instead of weakening it.
 
-`npm test` runs once; `npm run test:watch` watches changes. `npm run test:coverage` generates `coverage/index.html` and enforces the existing 90% statement/function/line and 85% branch gates. These tests do not replace browser inspection. See [the Stage 2.5 testing report](docs/stage-2-5-testing.md), [the Stage 2 record](docs/testing-stage-2.md), and [the preserved Stage 1 record](docs/testing.md).
+`npm test` runs once; `npm run test:watch` watches changes. `npm run test:coverage` generates `coverage/index.html` and enforces the existing 90% statement/function/line and 85% branch gates. These tests do not replace browser inspection. See [the Cloud follow-up](docs/stage-2-5-cloud.md), [the earlier Stage 2.5 local report](docs/stage-2-5-testing.md), [the Stage 2 record](docs/testing-stage-2.md), and [the preserved Stage 1 record](docs/testing.md).
 
 GitHub Actions runs the build, regression suite and local Supabase integration tests using Docker. No production credentials or deployment are involved. The existing workflow filename remains `.github/workflows/quarrel-stage-1-checks.yml` for continuity.
 
