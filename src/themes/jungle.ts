@@ -10,7 +10,16 @@ export const jungle: ThemeConfig = {
     "jungle-zebra": { id: "jungle-zebra", displayName: "Zuri", roleLabel: "Zebra", assetId: "zebra", description: "Zuri, an energetic zebra wearing a coral vest" },
   } },
   judge: { id: "jungle-moki", displayName: "Judge Moki", assetId: "lemur", description: "Judge Moki, a ring-tailed lemur in a judicial robe holding a gavel", personality: "Energetic, playful, dramatic and humorous. Expressive without taking sides.", dialogueStyle: "Warm, lively phrasing and light jungle metaphors. Humor never substitutes for evidence.", neutralityPolicy,
-    dialogue: { welcome: "Welcome to the jungle! Create a private room or join your friend. I’ll keep your seats warm.", lobby: "Welcome to your private courtroom! Invite your friend, then each choose ready when you’re settled.", ready: "Both players are ready! Your jungle party is assembled. The debate will begin in a future stage." },
+    dialogue: { welcome: "Welcome to the jungle! Create a private room or join your friend. I’ll keep your seats warm.", lobby: "Welcome to your private courtroom! Invite your friend, then each choose ready when you’re settled.", ready: "Both players are ready! Agree on your topic and positions, then Player A can open this jungle hearing." },
+    debateDialogue: {
+      setup: "Every good jungle debate needs a question! Player A, propose a topic and a clear position for each side.",
+      awaitingApproval: "Two sides of the same banana! Player B, check the topic and positions before we begin.",
+      introduction: "The jungle question: “{topic}” {speaker}, plant your opening idea! Both openings stay private until this round ends.",
+      opening: "Round one: plant your idea! {speaker} has the floor. Both openings stay private until this round ends.",
+      rebuttal: "Round two: let’s peel back the arguments. {speaker}, respond to the other opening with care.",
+      questions: "One final branch to explore! {speaker}, answer the practice question. This question is scripted, not AI-generated.",
+      complete: "And that’s our jungle hearing! All three rounds are complete. No winner or AI verdict is assigned in this stage.",
+    },
     samples: [
       { id: "welcome", label: "Welcome to court", text: "Order in the jungle! Big opinions welcome. Keep it kind, keep it convincing." },
       { id: "evidence", label: "A little encouragement", text: "An interesting point! A strong argument needs more than a very confident roar." },

@@ -178,3 +178,65 @@ describe("session-authorized room API", () => {
     expect(mock.rpc).not.toHaveBeenCalled();
   });
 });
+
+describe("Stage 3 debate API boundaries", () => {
+  it.each([
+    ["propose", { topic: " Campus transit ", positionA: " Fund buses ", positionB: " Fund cycling ", revision: 2 }, "propose_quarrel_debate", { p_topic: "Campus transit", p_position_a: "Fund buses", p_position_b: "Fund cycling", p_revision: 2 }],
+    ["approve", { revision: 2 }, "approve_quarrel_debate", { p_revision: 2 }],
+    ["changes", { message: " Narrow the scope ", revision: 2 }, "request_quarrel_debate_changes", { p_message: "Narrow the scope", p_revision: 2 }],
+    ["start", { revision: 2 }, "start_quarrel_debate", { p_revision: 2 }],
+    ["argument", { text: " A reason.\nA second reason. ", revision: 2, turnIndex: 0 }, "submit_quarrel_argument", { p_text: "A reason.\nA second reason.", p_revision: 2, p_turn_index: 0 }],
+    ["advance", { revision: 2, turnIndex: 5 }, "advance_quarrel_debate", { p_revision: 2, p_turn_index: 5 }],
+  ] as const)("maps %s to its verified-session RPC", async (action, body, rpc, params) => {
+    const response = await roomRoute(req(action, body, cookie), action);
+    expect(response.status).toBe(200);
+    expect(mock.rpc).toHaveBeenCalledWith(rpc, params);
+    expect(mock.signInAnonymously).not.toHaveBeenCalled();
+  });
+
+  it.each([undefined, null, -1, 0.5, "1", 2_147_483_647])("rejects invalid revision %j", async revision => {
+    expect((await roomRoute(req("approve", { revision }, cookie), "approve")).status).toBe(400);
+    expect(mock.rpc).not.toHaveBeenCalled();
+  });
+  it.each([undefined, null, -1, 6, 0.5, "0"])("rejects invalid turn index %j", async turnIndex => {
+    expect((await roomRoute(req("argument", { text: "A reason", revision: 1, turnIndex }, cookie), "argument")).status).toBe(400);
+    expect(mock.rpc).not.toHaveBeenCalled();
+  });
+  it.each([
+    { topic: "", positionA: "Yes", positionB: "No", revision: 0 },
+    { topic: "x".repeat(241), positionA: "Yes", positionB: "No", revision: 0 },
+    { topic: "Bad\ntopic", positionA: "Yes", positionB: "No", revision: 0 },
+    { topic: "Transit", positionA: null, positionB: "No", revision: 0 },
+    { topic: "Transit", positionA: "Yes", positionB: "x".repeat(161), revision: 0 },
+    { topic: "Transit", positionA: "Yes", positionB: " YES ", revision: 0 },
+  ])("rejects invalid proposals before authentication", async body => {
+    expect((await roomRoute(req("propose", body, cookie), "propose")).status).toBe(400);
+    expect(mock.getUser).not.toHaveBeenCalled();
+  });
+  it.each(["", " ", "x".repeat(2001), "bad\u0000text", 2])("rejects invalid argument %j", async text => {
+    expect((await roomRoute(req("argument", { text, revision: 1, turnIndex: 0 }, cookie), "argument")).status).toBe(400);
+  });
+  it("accepts the full Unicode argument limit while bounding request bytes", async () => {
+    const text = "🌴".repeat(2000);
+    expect((await roomRoute(req("argument", { text, revision: 1, turnIndex: 0 }, cookie), "argument")).status).toBe(200);
+    expect(mock.rpc).toHaveBeenCalledWith("submit_quarrel_argument", { p_text: text, p_revision: 1, p_turn_index: 0 });
+    expect((await roomRoute(req("argument", { text: "x".repeat(17000), revision: 1, turnIndex: 0 }, cookie), "argument")).status).toBe(413);
+    expect((await roomRoute(req("changes", { message: "x".repeat(241), revision: 1 }, cookie), "changes")).status).toBe(400);
+  });
+  it.each(["playerId", "user_id", "slot", "deadline", "phase", "roomId"])("rejects forged submission field %s", async field => {
+    expect((await roomRoute(req("argument", { text: "Forged", revision: 1, turnIndex: 0, [field]: "B" }, cookie), "argument")).status).toBe(400);
+    expect(mock.rpc).not.toHaveBeenCalled();
+  });
+  it("requires the existing player session and exact origin for debate actions", async () => {
+    expect((await roomRoute(req("start", { revision: 1 }), "start")).status).toBe(401);
+    expect((await roomRoute(req("start", { revision: 1 }, cookie, "https://other.test"), "start")).status).toBe(403);
+    expect(mock.rpc).not.toHaveBeenCalled();
+    expect(mock.signInAnonymously).not.toHaveBeenCalled();
+  });
+  it.each(["STALE_REVISION", "STALE_TURN", "DEBATE_STARTED", "DEBATE_NOT_READY", "TURN_EXPIRED", "ALREADY_SUBMITTED"])("returns a safe conflict for %s", async message => {
+    mock.rpc.mockResolvedValue({ data: null, error: { message } });
+    const response = await roomRoute(req("argument", { text: "A reason", revision: 1, turnIndex: 0 }, cookie), "argument");
+    expect(response.status).toBe(409);
+    expect((await response.json()).error).toEqual(expect.any(String));
+  });
+});

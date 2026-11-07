@@ -10,7 +10,16 @@ export const superhero: ThemeConfig = {
     "superhero-inventor": { id: "superhero-inventor", displayName: "Kit", roleLabel: "Inventor", assetId: "superhero-inventor", description: "Kit, an original violet-clad inventor with goggles" },
   } },
   judge: { id: "superhero-rook", displayName: "Rook", assetId: "superhero-rook", description: "Rook, an original heroic sidekick in teal and gold", personality: "Witty, confident, heroic and analytical. A resourceful sidekick who gives both sides a fair hearing.", dialogueStyle: "Crisp comic-book phrasing with light detective and crime-fighting language. No copied character catchphrases.", neutralityPolicy,
-    dialogue: { welcome: "The city’s listening. Assemble your duo and bring your sharpest ideas to the rooftop.", lobby: "Your rooftop headquarters is ready. Signal your partner, then tell me when you’re both set.", ready: "Both signals are green. Your duo is assembled! The debate itself arrives in a future stage." },
+    dialogue: { welcome: "The city’s listening. Assemble your duo and bring your sharpest ideas to the rooftop.", lobby: "Your rooftop headquarters is ready. Signal your partner, then tell me when you’re both set.", ready: "Both signals are green. Agree on the topic and positions, then Player A can launch the hearing." },
+    debateDialogue: {
+      setup: "Every mission needs a brief. Player A, set the question and the two opposing positions.",
+      awaitingApproval: "Mission brief received. Player B, approve both positions or signal what needs changing.",
+      introduction: "Tonight’s mission: “{topic}” {speaker}, send your opening signal. Both openings stay sealed until this round ends.",
+      opening: "First signal: opening statements. {speaker}, make your case. Both openings are sealed until the round ends.",
+      rebuttal: "Time to inspect the other angle. {speaker}, your rebuttal is on the rooftop frequency.",
+      questions: "Final checkpoint. {speaker}, answer the scripted practice question. No AI analysis is running.",
+      complete: "Mission logged: three rounds complete. The record is ready to review; no winner or AI verdict is assigned.",
+    },
     samples: [
       { id: "welcome", label: "Rooftop roll call", text: "Welcome to the rooftop. Capes optional. Clear reasoning essential." },
       { id: "evidence", label: "Follow the evidence", text: "Bold theory. Now show me the evidence that makes it more than a great entrance." },

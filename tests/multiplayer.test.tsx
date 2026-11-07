@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } fr
 import { MultiplayerApp, RoomEntry, RoomLobby } from "@/components/multiplayer-app";
 import { roomRequest, useRoomClient } from "@/lib/room-client";
 import type { RoomResponse, RoomSnapshot } from "@/lib/room-types";
+import type { DebateSnapshot } from "@/lib/debate-types";
 import { getTheme, themes, type ThemeId } from "@/themes";
 
 // Keep the real React client and UI. Only the HTTP/WebSocket transports are
@@ -187,7 +188,7 @@ describe("Stage 2 room lobby", () => {
     current = { ...current!, bothReady: true, players: current!.players.map(player => ({ ...player, ready: true })) };
     act(() => socket.change!());
     expect(await screen.findByRole("heading", { name: "Ready to start — both players confirmed!" })).toBeInTheDocument();
-    expect(screen.getByText(/Stage 2\.5 ends here; no debate has started/)).toBeInTheDocument();
+    expect(screen.getByText(/Approve the same topic and positions. Player A chooses when to start/)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "I’m not ready" }));
     expect(await screen.findByRole("button", { name: "I’m ready" })).toHaveAttribute("aria-pressed", "false");
   });
@@ -446,8 +447,8 @@ describe("Stage 2 connection recovery", () => {
     let release!: (value: Response) => void;
     fetchMock.mockImplementationOnce(() => new Promise(resolve => { release = resolve; }));
     act(() => { void view.result.current.refresh(); });
-    let first!: Promise<void>;
-    let duplicate!: Promise<void>;
+    let first!: Promise<boolean>;
+    let duplicate!: Promise<boolean>;
     act(() => {
       first = view.result.current.setReady(true);
       duplicate = view.result.current.setReady(false);
@@ -700,5 +701,74 @@ describe("Stage 2.5 shared theme selection", () => {
     expect(mutationCount()).toBe(before);
     expect(current?.themeId).toBe(theme.id);
     expect(current?.players[0].ready).toBe(false);
+  });
+});
+
+function activeDebate(): DebateSnapshot {
+  return {
+    phase: "opening", topic: "Campus transport", positionA: "More buses", positionB: "More cycling",
+    revision: 2, approvedA: true, approvedB: true, changeRequest: null,
+    activeSlot: "A", turnIndex: 0, turnDeadline: "2026-11-07T18:00:45.000Z",
+    serverNow: "2026-11-07T18:00:00.000Z", startedAt: "2026-11-07T18:00:00.000Z",
+    history: [], questions: [],
+  };
+}
+
+describe("Stage 3 synchronized client", () => {
+  it("sends revision/turn scoped actions, and returns success only after the server accepts them", async () => {
+    current = room({ debate: { ...activeDebate(), phase: "setup", turnDeadline: null, turnIndex: null } });
+    const view = renderHook(() => useRoomClient());
+    await waitFor(() => expect(view.result.current.live).toBe(true));
+    await act(async () => {
+      expect(await view.result.current.proposeTopic("Topic", "For", "Against", 2)).toBe(true);
+      expect(await view.result.current.approveTopic(3)).toBe(true);
+      expect(await view.result.current.requestChanges("Clarify scope", 3)).toBe(true);
+      expect(await view.result.current.startDebate(4)).toBe(true);
+      expect(await view.result.current.submitArgument("Evidence", 4, 0)).toBe(true);
+    });
+    const actions = fetchMock.mock.calls.filter(([path]) => String(path).includes("/debate/"));
+    expect(actions.map(([path, options]) => [path, JSON.parse(options!.body as string)])).toEqual([
+      ["/api/rooms/debate/propose", { topic: "Topic", positionA: "For", positionB: "Against", revision: 2 }],
+      ["/api/rooms/debate/approve", { revision: 3 }],
+      ["/api/rooms/debate/changes", { message: "Clarify scope", revision: 3 }],
+      ["/api/rooms/debate/start", { revision: 4 }],
+      ["/api/rooms/debate/argument", { text: "Evidence", revision: 4, turnIndex: 0 }],
+    ]);
+    fetchMock.mockResolvedValueOnce(json({ error: "That turn has ended." }, 409));
+    await act(async () => { expect(await view.result.current.submitArgument("Keep my draft", 4, 0)).toBe(false); });
+    expect(view.result.current.error).toBe("That turn has ended.");
+    view.unmount();
+    expect(await view.result.current.submitArgument("Unmounted", 4, 0)).toBe(false);
+  });
+
+  it("counts down from server time and requests reconciliation without inventing a local transition", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date", "performance"] });
+    const started = performance.now();
+    const serverEpoch = Date.parse("2026-11-07T18:00:00Z");
+    current = room({ debate: activeDebate() });
+    fetchMock.mockImplementation(async path => {
+      const elapsed = performance.now() - started;
+      const debate = current!.debate!;
+      current = { ...current!, debate: { ...debate, serverNow: new Date(serverEpoch + elapsed).toISOString() } };
+      if (path === "/api/rooms/debate/advance") {
+        current = { ...current!, debate: { ...current.debate!, activeSlot: "B", turnIndex: 1, turnDeadline: "2026-11-07T18:01:30.000Z" } };
+      }
+      return json(response(current));
+    });
+    const view = renderHook(() => useRoomClient());
+    await act(async () => { await Promise.resolve(); });
+    expect(view.result.current.remainingSeconds).toBe(45);
+    await act(async () => { await vi.advanceTimersByTimeAsync(44000); });
+    expect(view.result.current.remainingSeconds).toBe(1);
+    expect(view.result.current.room?.debate?.activeSlot).toBe("A");
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    const advance = fetchMock.mock.calls.find(([path]) => path === "/api/rooms/debate/advance");
+    expect(JSON.parse(advance![1]!.body as string)).toEqual({ revision: 2, turnIndex: 0 });
+    expect(view.result.current.room?.debate?.activeSlot).toBe("B");
+    expect(view.result.current.remainingSeconds).toBe(45);
+    view.unmount();
+    const requests = fetchMock.mock.calls.length;
+    await act(async () => { await vi.advanceTimersByTimeAsync(100000); });
+    expect(fetchMock.mock.calls).toHaveLength(requests);
   });
 });

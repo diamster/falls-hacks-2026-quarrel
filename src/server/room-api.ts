@@ -2,7 +2,7 @@ import { createClient, type Session, type SupabaseClient } from "@supabase/supab
 import { NextRequest, NextResponse } from "next/server";
 import { isThemeId } from "@/themes";
 
-type Action = "session" | "create" | "join" | "ready" | "heartbeat" | "theme";
+type Action = "session" | "create" | "join" | "ready" | "heartbeat" | "theme" | "propose" | "approve" | "changes" | "start" | "argument" | "advance";
 const cookieNames = ["quarrel_access", "quarrel_refresh"] as const;
 const messages: Record<string, [number, string]> = {
   UNAUTHORIZED: [401, "Your player session has expired. Please reload and join again."],
@@ -14,8 +14,29 @@ const messages: Record<string, [number, string]> = {
   INVALID_CODE: [400, "Enter a valid six-character room code."],
   INVALID_READY: [400, "Readiness must be true or false."],
   INVALID_THEME: [400, "Choose one of the four available themes."],
-  HOST_ONLY: [403, "Only Player A can change the room theme."],
+  HOST_ONLY: [403, "Only Player A can perform this host action."],
   THEME_LOCKED: [409, "The room theme is locked."],
+  INVALID_TOPIC: [400, "Enter a topic between 1 and 240 characters."],
+  INVALID_POSITION: [400, "Enter two distinct opposing positions, each between 1 and 160 characters."],
+  INVALID_CHANGE_REQUEST: [400, "Describe the requested change in 1 to 240 characters."],
+  INVALID_ARGUMENT: [400, "Enter an argument between 1 and 2,000 characters."],
+  INVALID_REVISION: [400, "The topic revision is invalid. Refresh the room."],
+  INVALID_TURN: [400, "The turn is invalid. Refresh the room."],
+  STALE_REVISION: [409, "The topic changed. Review the latest proposal before continuing."],
+  STALE_TURN: [409, "That turn has ended. The room is moving to the next turn."],
+  DEBATE_STARTED: [409, "The debate has started. Its topic and positions are locked."],
+  DEBATE_NOT_STARTED: [409, "Both players must agree and be ready before the debate starts."],
+  DEBATE_FINISHED: [409, "All debate turns are complete."],
+  DEBATE_COMPLETE: [409, "All debate turns are complete."],
+  TOPIC_NOT_APPROVED: [409, "Both players must approve the topic and their opposing positions."],
+  CHANGES_REQUESTED: [409, "Player A must update the proposal before it can be approved."],
+  PLAYERS_NOT_READY: [409, "Both players must be connected and ready."],
+  GUEST_ONLY: [403, "Only Player B can request changes to this proposal."],
+  NOT_YOUR_TURN: [403, "Wait for your turn before submitting."],
+  TURN_EXPIRED: [409, "Your turn expired. The room is moving to the next turn."],
+  DUPLICATE_SUBMISSION: [409, "This turn already has a submitted argument."],
+  ALREADY_SUBMITTED: [409, "This turn already has a submitted argument."],
+  DEBATE_NOT_READY: [409, "Both players must approve the topic and their positions, then be connected and ready."],
 };
 
 class RoomError extends Error {
@@ -81,7 +102,8 @@ async function input(request: NextRequest, action: Action): Promise<Record<strin
   const expectedOrigin = `${request.nextUrl.protocol}//${request.headers.get("host") || request.nextUrl.host}`;
   if (request.headers.get("origin") !== expectedOrigin) throw new RoomError(403, "This request must come from the room page.");
   if (!request.headers.get("content-type")?.startsWith("application/json")) throw new RoomError(415, "Send room requests as JSON.");
-  if (Number(request.headers.get("content-length")) > 1024) throw new RoomError(413, "The room request is too large.");
+  const maxBytes = action === "argument" ? 16_384 : action === "propose" ? 4096 : action === "changes" ? 2048 : 1024;
+  if (Number(request.headers.get("content-length")) > maxBytes) throw new RoomError(413, "The room request is too large.");
   const reader = request.body?.getReader();
   const chunks: Uint8Array[] = [];
   let length = 0;
@@ -91,7 +113,7 @@ async function input(request: NextRequest, action: Action): Promise<Record<strin
         const { done, value } = await reader.read();
         if (done) break;
         length += value.byteLength;
-        if (length > 1024) {
+        if (length > maxBytes) {
           await reader.cancel();
           throw new RoomError(413, "The room request is too large.");
         }
@@ -105,7 +127,11 @@ async function input(request: NextRequest, action: Action): Promise<Record<strin
   const text = new TextDecoder().decode(bytes);
   let body: Record<string, unknown>;
   try { body = JSON.parse(text); } catch { throw new RoomError(400, "Invalid room request."); }
-  const fields: string[] = { create: ["name"], join: ["name", "code"], ready: ["ready"], heartbeat: [], theme: ["themeId"] }[action];
+  const fields: string[] = {
+    create: ["name"], join: ["name", "code"], ready: ["ready"], heartbeat: [], theme: ["themeId"],
+    propose: ["topic", "positionA", "positionB", "revision"], approve: ["revision"],
+    changes: ["message", "revision"], start: ["revision"], argument: ["text", "revision", "turnIndex"], advance: ["revision", "turnIndex"],
+  }[action];
   if (!body || Array.isArray(body) || typeof body !== "object" || Object.keys(body).some(key => !fields.includes(key))) {
     throw new RoomError(400, "Unexpected room request fields. Player identity comes from your session.");
   }
@@ -119,6 +145,26 @@ async function input(request: NextRequest, action: Action): Promise<Record<strin
   }
   if (action === "ready" && typeof body.ready !== "boolean") failDatabase("INVALID_READY");
   if (action === "theme" && !isThemeId(body.themeId)) failDatabase("INVALID_THEME");
+  if (["propose", "approve", "changes", "start", "argument", "advance"].includes(action)) {
+    if (!Number.isInteger(body.revision) || (body.revision as number) < 0 || (body.revision as number) > 2_147_483_646) failDatabase("INVALID_REVISION");
+  }
+  function boundedText(field: string, max: number, error: string, multiline = false) {
+    const value = body[field];
+    const controls = multiline ? /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/ : /[\u0000-\u001f\u007f]/;
+    if (typeof value !== "string" || !value.trim() || Array.from(value.trim()).length > max || controls.test(value)) failDatabase(error);
+    body[field] = value.trim();
+  }
+  if (action === "propose") {
+    boundedText("topic", 240, "INVALID_TOPIC");
+    boundedText("positionA", 160, "INVALID_POSITION");
+    boundedText("positionB", 160, "INVALID_POSITION");
+    if ((body.positionA as string).toLowerCase() === (body.positionB as string).toLowerCase()) failDatabase("INVALID_POSITION");
+  }
+  if (action === "changes") boundedText("message", 240, "INVALID_CHANGE_REQUEST");
+  if (action === "argument") boundedText("text", 2000, "INVALID_ARGUMENT", true);
+  if (action === "argument" || action === "advance") {
+    if (!Number.isInteger(body.turnIndex) || (body.turnIndex as number) < 0 || (body.turnIndex as number) > 5) failDatabase("INVALID_TURN");
+  }
   return body;
 }
 
@@ -147,6 +193,12 @@ export async function roomRoute(request: NextRequest, action: Action) {
         ready: ["set_quarrel_ready", { p_ready: body.ready }],
         heartbeat: ["heartbeat_quarrel_room", {}],
         theme: ["set_quarrel_theme", { p_theme_id: body.themeId }],
+        propose: ["propose_quarrel_debate", { p_topic: body.topic, p_position_a: body.positionA, p_position_b: body.positionB, p_revision: body.revision }],
+        approve: ["approve_quarrel_debate", { p_revision: body.revision }],
+        changes: ["request_quarrel_debate_changes", { p_message: body.message, p_revision: body.revision }],
+        start: ["start_quarrel_debate", { p_revision: body.revision }],
+        argument: ["submit_quarrel_argument", { p_text: body.text, p_revision: body.revision, p_turn_index: body.turnIndex }],
+        advance: ["advance_quarrel_debate", { p_revision: body.revision, p_turn_index: body.turnIndex }],
       };
       const [name, params] = rpc[action];
       const { data, error } = await (auth.db as SupabaseClient).rpc(name, params);

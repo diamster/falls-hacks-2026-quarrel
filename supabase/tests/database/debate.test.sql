@@ -1,0 +1,168 @@
+-- Real PostgreSQL authorization, concealment and clock-state checks. All test
+-- users, rooms and administrator-only clock adjustments roll back together.
+begin;
+create extension if not exists pgtap with schema extensions;
+set local search_path = public, extensions;
+select no_plan();
+
+insert into auth.users(id, aud, role, is_anonymous, created_at, updated_at) values
+  ('a7777777-7777-4777-8777-777777777777', 'authenticated', 'authenticated', true, now(), now()),
+  ('b8888888-8888-4888-8888-888888888888', 'authenticated', 'authenticated', true, now(), now()),
+  ('c9999999-9999-4999-8999-999999999999', 'authenticated', 'authenticated', true, now(), now()),
+  ('d1111111-1111-4111-8111-111111111111', 'authenticated', 'authenticated', true, now(), now()),
+  ('e2222222-2222-4222-8222-222222222222', 'authenticated', 'authenticated', true, now(), now());
+create temporary table debate_test_room(snapshot jsonb, deadline timestamptz);
+grant select, insert, update on debate_test_room to authenticated;
+
+select ok(not has_table_privilege('authenticated', 'quarrel_private.debate_entries', 'SELECT'), 'Members cannot directly select hidden arguments');
+select ok(not has_table_privilege('authenticated', 'quarrel_private.debates', 'UPDATE'), 'Members cannot directly change turn state');
+select ok(not has_table_privilege('anon', 'quarrel_private.debate_entries', 'SELECT'), 'Public callers cannot read arguments');
+select ok((select relrowsecurity from pg_class where oid = 'quarrel_private.debate_entries'::regclass), 'Private arguments also have RLS enabled');
+select ok((select relrowsecurity from pg_class where oid = 'quarrel_private.debates'::regclass), 'Private state also has RLS enabled');
+select ok(not exists(select 1 from pg_publication_tables where schemaname = 'quarrel_private' and tablename in ('debates', 'debate_entries')), 'No private debate table is published to Realtime');
+select ok(not has_function_privilege('authenticated', 'quarrel_private.complete_debate_turn(uuid,timestamptz)', 'EXECUTE'), 'Clients cannot invoke the turn-transition helper');
+select ok(not has_function_privilege('authenticated', 'quarrel_private.reconcile_debate(uuid)', 'EXECUTE'), 'Clients cannot invoke reconciliation with another room ID');
+select ok(not has_function_privilege('authenticated', 'quarrel_private.lock_member_room()', 'EXECUTE'), 'Clients cannot call internal locking helper');
+select ok(not has_function_privilege('anon', 'public.start_quarrel_debate(integer)', 'EXECUTE'), 'Public callers cannot start a debate');
+select ok(not has_function_privilege('anon', 'public.submit_quarrel_argument(text,integer,integer)', 'EXECUTE'), 'Public callers cannot submit arguments');
+
+set local role authenticated;
+set local request.jwt.claim.sub = '';
+select throws_ok($$select public.start_quarrel_debate(0)$$, 'P0001', 'UNAUTHORIZED', 'Start checks identity inside the RPC');
+set local request.jwt.claim.sub = 'a7777777-7777-4777-8777-777777777777';
+insert into debate_test_room(snapshot) values(public.create_quarrel_room('Debate host'));
+select is(public.get_quarrel_room() #>> '{debate,phase}', 'setup', 'Existing room creation initializes setup');
+select is(public.get_quarrel_room() #>> '{debate,revision}', '0', 'Initial topic revision is zero');
+select is(public.get_quarrel_room() #>> '{debate,turnIndex}', null::text, 'Setup has no active turn');
+select ok(public.get_quarrel_room() #>> '{debate,serverNow}' is not null, 'Every snapshot supplies database time');
+select throws_ok($$select public.start_quarrel_debate(0)$$, 'P0001', 'DEBATE_NOT_READY', 'No start without proposal and opponent');
+select throws_ok($$select public.propose_quarrel_debate('', 'For', 'Against', 0)$$, 'P0001', 'INVALID_TOPIC', 'Blank topic rejected');
+select throws_ok($$select public.propose_quarrel_debate(repeat('x',241), 'For', 'Against', 0)$$, 'P0001', 'INVALID_TOPIC', 'Topic length enforced');
+select throws_ok($$select public.propose_quarrel_debate('Topic', 'Same', ' same ', 0)$$, 'P0001', 'INVALID_POSITION', 'Equal positions rejected after normalization');
+select throws_ok($$select public.propose_quarrel_debate('Topic', repeat('x',161), 'Against', 0)$$, 'P0001', 'INVALID_POSITION', 'Position length enforced');
+select throws_ok($$select public.propose_quarrel_debate('Topic', 'For', 'Against', null)$$, 'P0001', 'STALE_REVISION', 'Revision cannot be omitted');
+select is(public.set_quarrel_ready(true) #>> '{players,0,ready}', 'true', 'Legacy ready-before-topic behavior remains available');
+update debate_test_room set snapshot = public.propose_quarrel_debate('Campus should be car free', 'Support car-free campus', 'Oppose car-free campus', 0);
+select is((select snapshot #>> '{debate,revision}' from debate_test_room), '1', 'Proposal increments revision');
+select is((select snapshot #>> '{debate,approvedA}' from debate_test_room), 'true', 'Proposing confirms host position');
+select is((select snapshot #>> '{players,0,ready}' from debate_test_room), 'false', 'Proposal resets readiness');
+select throws_ok($$select public.request_quarrel_debate_changes('Please revise', 1)$$, 'P0001', 'GUEST_ONLY', 'Host cannot impersonate guest change request');
+
+set local request.jwt.claim.sub = 'b8888888-8888-4888-8888-888888888888';
+update debate_test_room set snapshot = public.join_quarrel_room(snapshot->>'code', 'Debate guest');
+select is((select snapshot #>> '{debate,topic}' from debate_test_room), 'Campus should be car free', 'Joining player receives proposal');
+select throws_ok($$select public.propose_quarrel_debate('Changed', 'For', 'Against', 1)$$, 'P0001', 'HOST_ONLY', 'Guest cannot replace host proposal');
+select throws_ok($$select public.start_quarrel_debate(1)$$, 'P0001', 'HOST_ONLY', 'Guest cannot start');
+select throws_ok($$select public.request_quarrel_debate_changes('', 1)$$, 'P0001', 'INVALID_CHANGE_REQUEST', 'Blank change request rejected');
+select is(public.request_quarrel_debate_changes('Include accessibility exceptions', 1) #>> '{debate,changeRequest}', 'Include accessibility exceptions', 'Guest can request changes');
+select throws_ok($$select public.approve_quarrel_debate(1)$$, 'P0001', 'CHANGES_REQUESTED', 'Approval cannot bypass unresolved changes');
+set local request.jwt.claim.sub = 'a7777777-7777-4777-8777-777777777777';
+select throws_ok($$select public.start_quarrel_debate(1)$$, 'P0001', 'DEBATE_NOT_READY', 'Change request blocks start');
+update debate_test_room set snapshot = public.propose_quarrel_debate('Car-free campus with accessibility exceptions', 'Support the proposal', 'Oppose the proposal', 1);
+select is((select snapshot #>> '{debate,changeRequest}' from debate_test_room), null::text, 'Reproposal clears change request');
+set local request.jwt.claim.sub = 'b8888888-8888-4888-8888-888888888888';
+select throws_ok($$select public.approve_quarrel_debate(1)$$, 'P0001', 'STALE_REVISION', 'Old proposal cannot be approved');
+select is(public.approve_quarrel_debate(2) #>> '{debate,approvedB}', 'true', 'Guest approves current opposing position');
+select is(public.set_quarrel_ready(true) #>> '{players,1,ready}', 'true', 'Guest readiness preserved');
+set local request.jwt.claim.sub = 'a7777777-7777-4777-8777-777777777777';
+select throws_ok($$select public.start_quarrel_debate(2)$$, 'P0001', 'DEBATE_NOT_READY', 'Both approvals alone do not bypass readiness');
+select is(public.set_quarrel_ready(true)->>'bothReady', 'true', 'Both players become ready');
+
+reset role;
+update public.quarrel_players set last_seen = clock_timestamp() - interval '36 seconds' where user_id = 'b8888888-8888-4888-8888-888888888888';
+set local role authenticated;
+select throws_ok($$select public.start_quarrel_debate(2)$$, 'P0001', 'DEBATE_NOT_READY', 'Disconnected opponent blocks initial start');
+set local request.jwt.claim.sub = 'b8888888-8888-4888-8888-888888888888';
+select is(public.heartbeat_quarrel_room() #>> '{players,1,connected}', 'true', 'Heartbeat restores verified player connection');
+set local request.jwt.claim.sub = 'a7777777-7777-4777-8777-777777777777';
+update debate_test_room set snapshot = public.start_quarrel_debate(2);
+select is((select snapshot #>> '{debate,phase}' from debate_test_room), 'opening', 'Host starts opening round');
+select is((select snapshot #>> '{debate,activeSlot}' from debate_test_room), 'A', 'Host opens first');
+select is((select snapshot->>'themeLocked' from debate_test_room), 'true', 'Start atomically locks theme');
+select is((select jsonb_array_length(snapshot #> '{debate,questions}') from debate_test_room), 2, 'Start persists two placeholder questions');
+select is((select snapshot #>> '{debate,questions,0,source}' from debate_test_room), 'placeholder', 'Questions explicitly identify placeholder source');
+select ok((select extract(epoch from ((snapshot #>> '{debate,turnDeadline}')::timestamptz - (snapshot #>> '{debate,startedAt}')::timestamptz)) = 45 from debate_test_room), 'First opening deadline is exactly 45 database seconds');
+select throws_ok($$select public.start_quarrel_debate(2)$$, 'P0001', 'DEBATE_STARTED', 'Duplicate start cannot reset clock');
+select throws_ok($$select public.set_quarrel_ready(false)$$, 'P0001', 'DEBATE_STARTED', 'Started readiness cannot be changed through the API');
+select throws_ok($$select public.set_quarrel_theme('detective')$$, 'P0001', 'THEME_LOCKED', 'Theme cannot change after start');
+select throws_ok($$select public.propose_quarrel_debate('New', 'For', 'Against', 2)$$, 'P0001', 'DEBATE_STARTED', 'Started topic cannot change');
+select is(public.advance_quarrel_debate(2, 5) #>> '{debate,turnIndex}', '0', 'Even a forged future advance cannot skip an unexpired turn');
+select throws_ok($$select public.submit_quarrel_argument('Future', 2, 2)$$, 'P0001', 'STALE_TURN', 'Host cannot submit a future turn');
+select throws_ok($$select public.submit_quarrel_argument('Old', 1, 0)$$, 'P0001', 'STALE_REVISION', 'Submission must identify current proposal');
+select throws_ok($$select public.submit_quarrel_argument(E'\n\t ', 2, 0)$$, 'P0001', 'INVALID_ARGUMENT', 'Whitespace-only argument rejected');
+select throws_ok($$select public.submit_quarrel_argument(repeat('🦁',2001), 2, 0)$$, 'P0001', 'INVALID_ARGUMENT', 'Argument limit counts Unicode characters');
+set local request.jwt.claim.sub = 'b8888888-8888-4888-8888-888888888888';
+select throws_ok($$select public.submit_quarrel_argument('Pretend to be A', 2, 0)$$, 'P0001', 'NOT_YOUR_TURN', 'Guest cannot submit for the host');
+set local request.jwt.claim.sub = 'a7777777-7777-4777-8777-777777777777';
+update debate_test_room set snapshot = public.submit_quarrel_argument(E'Hidden opening\nwith evidence', 2, 0);
+select is((select snapshot #>> '{debate,turnIndex}' from debate_test_room), '1', 'Accepted A opening advances to B');
+select is((select snapshot #>> '{debate,history,0,text}' from debate_test_room), E'Hidden opening\nwith evidence', 'Sender can recover their own opening');
+select throws_ok($$select public.submit_quarrel_argument('Duplicate', 2, 0)$$, 'P0001', 'ALREADY_SUBMITTED', 'Duplicate cannot overwrite accepted argument');
+set local request.jwt.claim.sub = 'b8888888-8888-4888-8888-888888888888';
+select is(jsonb_array_length(public.get_quarrel_room() #> '{debate,history}'), 0, 'Peer snapshot completely conceals opening entry');
+select ok(not exists(select 1 from public.quarrel_rooms r where to_jsonb(r)::text like '%Hidden opening%'), 'Published room row never contains hidden text');
+select ok(not exists(select 1 from public.quarrel_players p where to_jsonb(p)::text like '%Hidden opening%'), 'Published player rows never contain hidden text');
+select throws_ok($$select * from quarrel_private.debate_entries$$, '42501', 'permission denied for table debate_entries', 'Peer cannot bypass concealment with direct SQL');
+update debate_test_room set snapshot = public.submit_quarrel_argument('B opening', 2, 1);
+select is((select snapshot #>> '{debate,phase}' from debate_test_room), 'rebuttal', 'Both completed openings start rebuttal');
+select is((select snapshot #>> '{debate,history,0,text}' from debate_test_room), E'Hidden opening\nwith evidence', 'Both openings reveal together');
+set local request.jwt.claim.sub = 'a7777777-7777-4777-8777-777777777777';
+select is(public.submit_quarrel_argument('A rebuttal', 2, 2) #>> '{debate,turnIndex}', '3', 'A rebuttal advances to B');
+set local request.jwt.claim.sub = 'b8888888-8888-4888-8888-888888888888';
+update debate_test_room set snapshot = public.submit_quarrel_argument('B rebuttal', 2, 3);
+select is((select snapshot #>> '{debate,phase}' from debate_test_room), 'questions', 'Rebuttals lead to placeholder questions');
+select ok((select extract(epoch from ((snapshot #>> '{debate,turnDeadline}')::timestamptz - (snapshot #>> '{debate,serverNow}')::timestamptz)) between 29 and 30 from debate_test_room), 'Question turn receives 30 seconds');
+set local request.jwt.claim.sub = 'a7777777-7777-4777-8777-777777777777';
+select is(public.submit_quarrel_argument('A clarification', 2, 4) #>> '{debate,turnIndex}', '5', 'A answer advances to B answer');
+set local request.jwt.claim.sub = 'b8888888-8888-4888-8888-888888888888';
+update debate_test_room set snapshot = public.submit_quarrel_argument('B clarification', 2, 5);
+select is((select snapshot #>> '{debate,phase}' from debate_test_room), 'verdict', 'Six completed turns reach placeholder verdict');
+select is((select snapshot #>> '{debate,activeSlot}' from debate_test_room), null::text, 'Verdict has no active player');
+select is((select snapshot #>> '{debate,turnDeadline}' from debate_test_room), null::text, 'Verdict has no running timer');
+select is((select jsonb_array_length(snapshot #> '{debate,history}') from debate_test_room), 6, 'History preserves all six accepted submissions');
+select ok(not (select snapshot #> '{debate}' ? 'winner' from debate_test_room), 'Stage 3 does not generate a winner');
+select is(public.advance_quarrel_debate(2, 0) #>> '{debate,phase}', 'verdict', 'Old timer delivery after completion is harmless');
+
+set local request.jwt.claim.sub = 'c9999999-9999-4999-8999-999999999999';
+select is(public.get_quarrel_room(), null::jsonb, 'Outsider receives no private room snapshot');
+select throws_ok($$select public.submit_quarrel_argument('Intrusion', 2, 0)$$, 'P0001', 'ROOM_NOT_FOUND', 'Outsider cannot submit');
+select is((select count(*)::int from public.quarrel_rooms), 0, 'Outsider sees no public room invalidation rows');
+
+-- A second fresh room exercises deadlines without sleeps or changing durations.
+set local request.jwt.claim.sub = 'd1111111-1111-4111-8111-111111111111';
+update debate_test_room set snapshot = public.create_quarrel_room('Clock host');
+update debate_test_room set snapshot = public.propose_quarrel_debate('Clock topic', 'For', 'Against', 0);
+update debate_test_room set snapshot = public.set_quarrel_ready(true);
+set local request.jwt.claim.sub = 'e2222222-2222-4222-8222-222222222222';
+update debate_test_room set snapshot = public.join_quarrel_room(snapshot->>'code', 'Clock guest');
+update debate_test_room set snapshot = public.approve_quarrel_debate(1);
+update debate_test_room set snapshot = public.set_quarrel_ready(true);
+set local request.jwt.claim.sub = 'd1111111-1111-4111-8111-111111111111';
+update debate_test_room set snapshot = public.start_quarrel_debate(1);
+reset role;
+update debate_test_room set deadline = clock_timestamp() - interval '1 second';
+update quarrel_private.debates set turn_deadline = (select deadline from debate_test_room) where room_id = (select (snapshot->>'id')::uuid from debate_test_room);
+update public.quarrel_players set last_seen = clock_timestamp() - interval '36 seconds' where room_id = (select (snapshot->>'id')::uuid from debate_test_room);
+set local role authenticated;
+select throws_ok($$select public.submit_quarrel_argument('Late opening', 1, 0)$$, 'P0001', 'TURN_EXPIRED', 'Late argument cannot be accepted even before reconciliation');
+update debate_test_room set snapshot = public.advance_quarrel_debate(1, 0);
+select is((select snapshot #>> '{debate,turnIndex}' from debate_test_room), '1', 'Expired A opening advances despite both disconnections');
+select ok((select (snapshot #>> '{debate,turnDeadline}')::timestamptz = deadline + interval '45 seconds' from debate_test_room), 'Next deadline chains from old deadline rather than late request time');
+select is((select snapshot #>> '{debate,history,0,status}' from debate_test_room), 'expired', 'Timeout has explicit expired history metadata');
+select is((select snapshot #>> '{debate,history,0,text}' from debate_test_room), null::text, 'Timeout never fabricates an argument');
+select is(public.advance_quarrel_debate(1, 0) #>> '{debate,turnIndex}', '1', 'Duplicate advance cannot skip the new turn');
+select throws_ok($$select public.submit_quarrel_argument('Recovered late', 1, 0)$$, 'P0001', 'TURN_EXPIRED', 'Recovery cannot overwrite timed-out opening');
+set local request.jwt.claim.sub = 'e2222222-2222-4222-8222-222222222222';
+select is(jsonb_array_length(public.get_quarrel_room() #> '{debate,history}'), 0, 'Peer opening timeout entry stays concealed until reveal');
+select is(public.submit_quarrel_argument('Valid authenticated reconnect', 1, 1) #>> '{debate,turnIndex}', '2', 'Stale heartbeat does not reject valid authenticated submission during own turn');
+reset role;
+update quarrel_private.debates set turn_deadline = clock_timestamp() - interval '5 minutes' where room_id = (select (snapshot->>'id')::uuid from debate_test_room);
+set local role authenticated;
+update debate_test_room set snapshot = public.heartbeat_quarrel_room();
+select is((select snapshot #>> '{debate,phase}' from debate_test_room), 'verdict', 'Heartbeat catches up every missed turn after long offline interval');
+select is((select jsonb_array_length(snapshot #> '{debate,history}') from debate_test_room), 6, 'Offline catchup records each missing turn once');
+select is((select count(*)::int from jsonb_array_elements((select snapshot #> '{debate,history}' from debate_test_room)) e where e->>'status' = 'expired'), 5, 'One submitted and five expired turns survive catchup');
+select is(public.get_quarrel_room() #>> '{debate,phase}', 'verdict', 'Further reads cannot restart completed debate');
+reset role;
+select * from finish();
+rollback;

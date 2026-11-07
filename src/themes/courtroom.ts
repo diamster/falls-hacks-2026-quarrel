@@ -10,7 +10,16 @@ export const courtroom: ThemeConfig = {
     "courtroom-advocate-b": { id: "courtroom-advocate-b", displayName: "Casey", roleLabel: "Advocate", assetId: "courtroom-advocate-b", description: "Casey, a courtroom advocate wearing a burgundy suit" },
   } },
   judge: { id: "courtroom-rowan", displayName: "Judge Rowan", assetId: "courtroom-rowan", description: "Judge Rowan, a composed human judge in a judicial robe", personality: "Serious, composed, professional and authoritative. Patient, impartial and respectful toward both speakers.", dialogueStyle: "Clear formal language and judicial terminology, with reasons stated plainly rather than theatrically.", neutralityPolicy,
-    dialogue: { welcome: "Welcome to the court. Please create a room or join your fellow participant.", lobby: "Both parties may take their seats. Indicate your readiness once you are settled.", ready: "Both parties have confirmed readiness. This lobby is prepared; proceedings begin in a future stage." },
+    dialogue: { welcome: "Welcome to the court. Please create a room or join your fellow participant.", lobby: "Both parties may take their seats. Indicate your readiness once you are settled.", ready: "Both parties have confirmed readiness. Once the topic and positions are approved, Player A may begin proceedings." },
+    debateDialogue: {
+      setup: "Player A, please propose the question before the court and a position for each party.",
+      awaitingApproval: "Player B, please review the proposed topic and positions. Confirm your agreement or request amendments.",
+      introduction: "The question before the court: “{topic}” {speaker}, please begin. Both openings remain private until this round concludes.",
+      opening: "Opening statements. {speaker} has the floor. Both statements remain private until this round concludes.",
+      rebuttal: "The court will now hear rebuttals. {speaker}, please address the other party’s opening argument.",
+      questions: "The final round uses a scripted practice question. {speaker}, please respond. No AI evaluation is involved.",
+      complete: "All three rounds are concluded. The record is available below. No winner or AI verdict is determined in this stage.",
+    },
     samples: [
       { id: "welcome", label: "Call to order", text: "This court will hear both perspectives with equal care. Please proceed with courtesy." },
       { id: "evidence", label: "Establish the basis", text: "Please distinguish your central claim from the evidence offered in its support." },

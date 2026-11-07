@@ -16,7 +16,8 @@
     "supabase:env": "node scripts/local-env.mjs",
     "test:db": "supabase test db",
     "test:supabase": "node --env-file-if-exists=.env.local tests/db/supabase.integration.mjs",
-    "test:api": "node --env-file-if-exists=.env.local tests/db/api.integration.mjs"
+    "test:api": "node --env-file-if-exists=.env.local tests/db/api.integration.mjs",
+    "test:debate": "node --env-file-if-exists=.env.local tests/db/debate.integration.mjs"
   },
   "engines": {
     "node": ">=22.12.0"

@@ -33,6 +33,8 @@ export interface ThemeConfig {
     /** Presentation only; future evaluation must use the shared core rules. */
     neutralityPolicy: typeof neutralityPolicy;
     dialogue: { welcome: string; lobby: string; ready: string };
+    /** Scripted announcements only. {speaker} and {topic} are plain-text substitutions. */
+    debateDialogue: Record<"setup" | "awaitingApproval" | "introduction" | "opening" | "rebuttal" | "questions" | "complete", string>;
     samples: ReadonlyArray<{ id: string; label: string; text: string }>;
   };
   animations: {

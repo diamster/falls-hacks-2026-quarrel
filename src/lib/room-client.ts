@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import type { RoomResponse } from "./room-types";
 import type { ThemeId } from "@/themes";
+import { remainingTurnSeconds, type ServerClock } from "./debate-types";
 
 const messages: Record<string, string> = {
   ROOM_NOT_FOUND: "That room does not exist. Check the six-character code and try again.",
@@ -44,8 +45,10 @@ export function useRoomClient() {
   const [offline, setOffline] = useState(false);
   const [live, setLive] = useState(false);
   const [error, setError] = useState("");
+  const [clock, setClock] = useState<ServerClock | null>(null);
+  const [remainingSeconds, setRemainingSeconds] = useState(0);
   const mounted = useRef(false);
-  const active = useRef<Promise<void> | null>(null);
+  const active = useRef<Promise<boolean> | null>(null);
   const controller = useRef<AbortController | null>(null);
   const actionPending = useRef(false);
 
@@ -58,17 +61,27 @@ export function useRoomClient() {
     let timedOut = false;
     const timeout = window.setTimeout(() => { timedOut = true; abort.abort(); }, 15_000);
     const operation = (async () => {
+      const sentAt = performance.now();
       try {
         const next = await roomRequest(path, body, abort.signal);
-        if (!mounted.current || abort.signal.aborted) return;
+        if (!mounted.current || abort.signal.aborted) return false;
+        const receivedAt = performance.now();
+        const serverTime = Date.parse(next.room?.debate?.serverNow ?? "");
+        setClock(Number.isFinite(serverTime) ? {
+          // The display estimates transit time; only Postgres decides expiry.
+          serverTimeMs: serverTime + (receivedAt - sentAt) / 2,
+          receivedAt,
+        } : null);
         setData(next); setError(""); setOffline(false);
+        return true;
       } catch (reason) {
-        if (!mounted.current || (abort.signal.aborted && !timedOut)) return;
+        if (!mounted.current || (abort.signal.aborted && !timedOut)) return false;
         setError(reason instanceof Error ? reason.message : "We could not reach the room. Please try again.");
         if (timedOut) setError("The room took too long to respond. Please try reconnecting.");
         if (reason instanceof RoomRequestError && (reason.status === 401 || reason.status === 410)) setData({ room: null });
         if (reason instanceof RoomRequestError && reason.status === 401) setError("Your player session was lost. Your previous seat cannot be recovered here; create a new room or use another invitation.");
         if (timedOut || !body || path.endsWith("heartbeat")) setOffline(true);
+        return false;
       } finally {
         window.clearTimeout(timeout);
         if (controller.current === abort) {
@@ -135,22 +148,59 @@ export function useRoomClient() {
   }, [roomId, realtime?.url, realtime?.key, realtime?.accessToken, refresh]);
 
   const act = useCallback(async (path: string, body: object) => {
-    if (actionPending.current) return;
+    if (actionPending.current) return false;
     actionPending.current = true;
     setPending(true);
     // Finish any heartbeat/read before issuing this deliberate player action.
     // Recheck after each await: a queued Realtime read may start first.
     while (active.current) await active.current;
-    if (mounted.current) await request(path, body);
+    const success = mounted.current ? await request(path, body) : false;
     actionPending.current = false;
     if (mounted.current) setPending(false);
+    return success;
   }, [request]);
 
+  const debate = data.room?.debate;
+  const deadline = debate?.turnDeadline;
+  const revision = debate?.revision;
+  const turnIndex = debate?.turnIndex;
+  useEffect(() => {
+    const tick = () => setRemainingSeconds(remainingTurnSeconds(deadline, clock, performance.now()));
+    tick();
+    if (!deadline || !clock) return;
+    const timer = window.setInterval(tick, 250);
+    return () => window.clearInterval(timer);
+  }, [deadline, clock]);
+
+  useEffect(() => {
+    if (!deadline || !clock || revision === undefined || turnIndex == null || offline) return;
+    let disposed = false;
+    let timer: number;
+    const reconcile = async () => {
+      // Both players may wake at the same deadline. The database's room lock
+      // reconciles once; stale advance requests only retrieve the current state.
+      while (active.current) await active.current;
+      if (disposed || !mounted.current) return;
+      await request("/api/rooms/debate/advance", { revision, turnIndex });
+      // A display estimate may be a little early, or a request may fail. Retry
+      // with a bounded delay; no client timestamp can force a transition.
+      if (!disposed) timer = window.setTimeout(() => { void reconcile(); }, 1500);
+    };
+    const remainingMs = Date.parse(deadline) - clock.serverTimeMs - Math.max(0, performance.now() - clock.receivedAt);
+    timer = window.setTimeout(() => { void reconcile(); }, Math.max(500, remainingMs));
+    return () => { disposed = true; window.clearTimeout(timer); };
+  }, [deadline, clock, revision, turnIndex, offline, request]);
+
   return {
-    room: data.room, loading, pending, offline, live, error, refresh,
+    room: data.room, loading, pending, offline, live, error, refresh, remainingSeconds,
     create: (name: string) => act("/api/rooms", { name }),
     join: (code: string, name: string) => act("/api/rooms/join", { code, name }),
     setTheme: (themeId: ThemeId) => act("/api/rooms/theme", { themeId }),
     setReady: (ready: boolean) => act("/api/rooms/ready", { ready }),
+    proposeTopic: (topic: string, positionA: string, positionB: string, revision: number) => act("/api/rooms/debate/propose", { topic, positionA, positionB, revision }),
+    approveTopic: (revision: number) => act("/api/rooms/debate/approve", { revision }),
+    requestChanges: (message: string, revision: number) => act("/api/rooms/debate/changes", { message, revision }),
+    startDebate: (revision: number) => act("/api/rooms/debate/start", { revision }),
+    submitArgument: (text: string, revision: number, turnIndex: number) => act("/api/rooms/debate/argument", { text, revision, turnIndex }),
   };
 }
