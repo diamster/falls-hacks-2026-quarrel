@@ -11,6 +11,8 @@ import {
 import { PixelSprite } from "@/themes/art/pixel/pixel-sprite";
 import { reactions } from "@/themes/art/pixel/types";
 import { PixelLab } from "@/app/pixel-lab/pixel-lab";
+import { CharacterAsset } from "@/themes/assets";
+import { DisplayPreferencesProvider, displayPreferencesKey } from "@/components/display-preferences";
 
 describe("pixel grid engine", () => {
   it("keeps every cell on whole integer coordinates inside the 48 × 56 grid", () => {
@@ -212,5 +214,33 @@ describe("Pixel Lab page", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("lawyer artwork preference", () => {
+  function showLawyer(lawyerArt: string | null) {
+    window.localStorage.clear();
+    if (lawyerArt) window.localStorage.setItem(displayPreferencesKey, JSON.stringify({ lawyerArt }));
+    return render(<DisplayPreferencesProvider>
+      <CharacterAsset assetId="courtroom-lawyer-a" label="Emery, an original lawyer"/>
+      <CharacterAsset assetId="courtroom-rowan" label="Judge Rowan"/>
+    </DisplayPreferencesProvider>);
+  }
+
+  it.each([
+    [null, "courtroom-lawyer-a", "Emery, an original lawyer"],
+    ["classic", "courtroom-lawyer-a", "Emery, an original lawyer"],
+    ["remaster", "remaster-courtroom-lawyer-a", /^Emery, drawn as a pixel lawyer/],
+    ["mascot", "mascot-pi-courtroom", /^Emery, drawn as a boxy two-tone robot/],
+    ["not-a-style", "courtroom-lawyer-a", "Emery, an original lawyer"],
+  ] as const)("with %s shows %s and leaves the judge unchanged", (style, assetId, name) => {
+    showLawyer(style);
+    expect(screen.getByRole("img", { name })).toHaveAttribute("data-character-asset", assetId);
+    expect(screen.getByRole("img", { name: "Judge Rowan" })).toHaveAttribute("data-character-asset", "courtroom-rowan");
+  });
+
+  it("uses the configured art outside the preferences provider", () => {
+    render(<CharacterAsset assetId={mascotAssetId("raccoon", "jungle")} label="Fern, a raccoon"/>);
+    expect(screen.getByRole("img", { name: "Fern, a raccoon" })).toHaveAttribute("data-pixel-art", "mascot");
   });
 });
