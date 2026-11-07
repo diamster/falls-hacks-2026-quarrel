@@ -4,8 +4,8 @@ import "@fontsource-variable/dm-sans";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "quarrel.io — The jungle court",
-  description: "Big opinions. Jungle rules. An original pixel-art debate courtroom — Private two-player rooms in a tropical pixel-art courtroom.",
+  title: "quarrel.io — Four worlds. One fair hearing.",
+  description: "Private two-player rooms in four original pixel-art worlds: Jungle, Superhero, Detective and Courtroom.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

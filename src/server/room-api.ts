@@ -1,7 +1,8 @@
 import { createClient, type Session, type SupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { isThemeId } from "@/themes";
 
-type Action = "session" | "create" | "join" | "ready" | "heartbeat";
+type Action = "session" | "create" | "join" | "ready" | "heartbeat" | "theme";
 const cookieNames = ["quarrel_access", "quarrel_refresh"] as const;
 const messages: Record<string, [number, string]> = {
   UNAUTHORIZED: [401, "Your player session has expired. Please reload and join again."],
@@ -12,6 +13,9 @@ const messages: Record<string, [number, string]> = {
   INVALID_NAME: [400, "Enter a display name between 1 and 32 characters."],
   INVALID_CODE: [400, "Enter a valid six-character room code."],
   INVALID_READY: [400, "Readiness must be true or false."],
+  INVALID_THEME: [400, "Choose one of the four available themes."],
+  HOST_ONLY: [403, "Only Player A can change the room theme."],
+  THEME_LOCKED: [409, "The room theme is locked."],
 };
 
 class RoomError extends Error {
@@ -101,7 +105,7 @@ async function input(request: NextRequest, action: Action): Promise<Record<strin
   const text = new TextDecoder().decode(bytes);
   let body: Record<string, unknown>;
   try { body = JSON.parse(text); } catch { throw new RoomError(400, "Invalid room request."); }
-  const fields: string[] = { create: ["name"], join: ["name", "code"], ready: ["ready"], heartbeat: [] }[action];
+  const fields: string[] = { create: ["name"], join: ["name", "code"], ready: ["ready"], heartbeat: [], theme: ["themeId"] }[action];
   if (!body || Array.isArray(body) || typeof body !== "object" || Object.keys(body).some(key => !fields.includes(key))) {
     throw new RoomError(400, "Unexpected room request fields. Player identity comes from your session.");
   }
@@ -114,6 +118,7 @@ async function input(request: NextRequest, action: Action): Promise<Record<strin
     body.code = body.code.trim().toUpperCase();
   }
   if (action === "ready" && typeof body.ready !== "boolean") failDatabase("INVALID_READY");
+  if (action === "theme" && !isThemeId(body.themeId)) failDatabase("INVALID_THEME");
   return body;
 }
 
@@ -141,6 +146,7 @@ export async function roomRoute(request: NextRequest, action: Action) {
         join: ["join_quarrel_room", { p_name: body.name, p_code: body.code }],
         ready: ["set_quarrel_ready", { p_ready: body.ready }],
         heartbeat: ["heartbeat_quarrel_room", {}],
+        theme: ["set_quarrel_theme", { p_theme_id: body.themeId }],
       };
       const [name, params] = rpc[action];
       const { data, error } = await (auth.db as SupabaseClient).rpc(name, params);

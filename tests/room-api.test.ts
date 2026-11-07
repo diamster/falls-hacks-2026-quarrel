@@ -5,7 +5,7 @@ import { roomRoute } from "@/server/room-api";
 const mock = vi.hoisted(() => ({ rpc: vi.fn(), getUser: vi.fn(), refreshSession: vi.fn(), signInAnonymously: vi.fn(), createClient: vi.fn() }));
 vi.mock("@supabase/supabase-js", () => ({ createClient: mock.createClient }));
 const session = { access_token: "signed-token", refresh_token: "refresh-token" };
-const room = { id: "room-id", code: "ABC234", you: "A", players: [{ slot: "A", name: "Lion", ready: false, connected: true }], bothReady: false };
+const room = { id: "room-id", code: "ABC234", you: "A", players: [{ slot: "A", name: "Lion", ready: false, connected: true }], bothReady: false, themeId: "jungle", themeLocked: false, mode: "solo", capacity: 2 };
 function req(action: string, body?: unknown, cookie = "", origin = "http://localhost:3000") {
   return new NextRequest(`http://localhost:3000/api/rooms/${action}`, {
     method: action === "session" ? "GET" : "POST",
@@ -147,5 +147,34 @@ describe("session-authorized room API", () => {
     const renewal = await roomRoute(req("session", undefined, cookie), "session");
     expect(renewal.status).toBe(503);
     expect(renewal.cookies.getAll()).toHaveLength(0);
+  });
+  it.each(["jungle", "superhero", "detective", "courtroom"])("accepts canonical theme %s through the authenticated RPC", async themeId => {
+    const response = await roomRoute(req("theme", { themeId }, cookie), "theme");
+    expect(response.status).toBe(200);
+    expect(mock.getUser).toHaveBeenCalledWith("existing-token");
+    expect(mock.rpc).toHaveBeenCalledWith("set_quarrel_theme", { p_theme_id: themeId });
+    expect((await response.json()).room).toEqual(room);
+  });
+  it.each([undefined, null, "", "Jungle", "unknown", "__proto__", 2, {}, []])("rejects invalid theme %j before a database call", async themeId => {
+    const response = await roomRoute(req("theme", { themeId }, cookie), "theme");
+    expect(response.status).toBe(400);
+    expect(mock.rpc).not.toHaveBeenCalled();
+    expect(mock.getUser).not.toHaveBeenCalled();
+  });
+  it.each(["playerId", "user_id", "slot", "themeLocked", "mode", "capacity"])("theme writes reject forged %s authority or future-mode fields", async field => {
+    expect((await roomRoute(req("theme", { themeId: "detective", [field]: "A" }, cookie), "theme")).status).toBe(400);
+    expect(mock.rpc).not.toHaveBeenCalled();
+  });
+  it.each([["HOST_ONLY", 403], ["THEME_LOCKED", 409], ["INVALID_THEME", 400]])("maps database theme error %s", async (message, status) => {
+    mock.rpc.mockResolvedValue({ data: null, error: { message } });
+    const response = await roomRoute(req("theme", { themeId: "detective" }, cookie), "theme");
+    expect(response.status).toBe(status);
+    expect((await response.json()).error).toEqual(expect.any(String));
+  });
+  it("does not create a new anonymous identity for unauthorized theme mutations", async () => {
+    expect((await roomRoute(req("theme", { themeId: "detective" }), "theme")).status).toBe(401);
+    expect((await roomRoute(req("theme", { themeId: "detective" }, cookie, "https://attacker.test"), "theme")).status).toBe(403);
+    expect(mock.signInAnonymously).not.toHaveBeenCalled();
+    expect(mock.rpc).not.toHaveBeenCalled();
   });
 });

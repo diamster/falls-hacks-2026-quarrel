@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import type { RoomResponse } from "./room-types";
+import type { ThemeId } from "@/themes";
 
 const messages: Record<string, string> = {
   ROOM_NOT_FOUND: "That room does not exist. Check the six-character code and try again.",
@@ -112,14 +113,16 @@ export function useRoomClient() {
     const client = createClient(realtime.url, realtime.key, {
       auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
     });
+    const resync = () => {
+      // A just-completed response may predate the event; read after it settles.
+      if (active.current) void active.current.then(() => { if (!disposed) void refresh(); });
+      else void refresh();
+    };
     void client.realtime.setAuth(realtime.accessToken).then(() => {
       if (disposed) return;
       client.channel(`room:${roomId}`)
-        .on("postgres_changes", { event: "*", schema: "public", table: "quarrel_players", filter: `room_id=eq.${roomId}` }, () => {
-          // Read after an in-flight heartbeat as that response may predate this event.
-          if (active.current) void active.current.then(() => { if (!disposed) void refresh(); });
-          else void refresh();
-        })
+        .on("postgres_changes", { event: "*", schema: "public", table: "quarrel_players", filter: `room_id=eq.${roomId}` }, resync)
+        .on("postgres_changes", { event: "UPDATE", schema: "public", table: "quarrel_rooms", filter: `id=eq.${roomId}` }, resync)
         .subscribe((status) => { if (!disposed) setLive(status === "SUBSCRIBED"); });
     }).catch(() => { if (!disposed) setLive(false); });
     return () => { disposed = true; setLive(false); void client.removeAllChannels(); };
@@ -141,6 +144,7 @@ export function useRoomClient() {
     room: data.room, loading, pending, offline, live, error, refresh,
     create: (name: string) => act("/api/rooms", { name }),
     join: (code: string, name: string) => act("/api/rooms/join", { code, name }),
+    setTheme: (themeId: ThemeId) => act("/api/rooms/theme", { themeId }),
     setReady: (ready: boolean) => act("/api/rooms/ready", { ready }),
   };
 }

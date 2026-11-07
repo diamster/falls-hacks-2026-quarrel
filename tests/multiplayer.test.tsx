@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } fr
 import { MultiplayerApp, RoomEntry, RoomLobby } from "@/components/multiplayer-app";
 import { roomRequest, useRoomClient } from "@/lib/room-client";
 import type { RoomResponse, RoomSnapshot } from "@/lib/room-types";
+import { getTheme, themes, type ThemeId } from "@/themes";
 
 // Keep the real React client and UI. Only the HTTP/WebSocket transports are
 // replaced: these tests exercise rendering, request bodies and synchronization,
@@ -17,12 +18,14 @@ const socket = vi.hoisted(() => ({
   unsubscribe: vi.fn().mockResolvedValue("ok"),
   disconnect: vi.fn(),
   filters: [] as unknown[],
+  changesByTable: {} as Record<string, () => void>,
 }));
 vi.mock("@supabase/supabase-js", () => ({
   createClient: vi.fn(() => {
     const channel = {
       on: vi.fn((_event: string, filter: unknown, callback: () => void) => {
         socket.change = callback;
+        if (filter && typeof filter === "object" && "table" in filter) socket.changesByTable[String(filter.table)] = callback;
         socket.filters.push(filter);
         return channel;
       }),
@@ -73,6 +76,7 @@ beforeEach(() => {
   socket.change = undefined;
   socket.status = undefined;
   socket.filters = [];
+  socket.changesByTable = {};
   window.history.replaceState({}, "", "/");
   fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async () => json(response(current)));
 });
@@ -176,7 +180,7 @@ describe("Stage 2 room lobby", () => {
     current = { ...current!, bothReady: true, players: current!.players.map(player => ({ ...player, ready: true })) };
     act(() => socket.change!());
     expect(await screen.findByRole("heading", { name: "Ready to start — both players confirmed!" })).toBeInTheDocument();
-    expect(screen.getByText(/Stage 2 ends here; no debate has started/)).toBeInTheDocument();
+    expect(screen.getByText(/Stage 2\.5 ends here; no debate has started/)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "I’m not ready" }));
     expect(await screen.findByRole("button", { name: "I’m ready" })).toHaveAttribute("aria-pressed", "false");
   });
@@ -210,6 +214,7 @@ describe("Stage 2 room lobby", () => {
     act(() => socket.change!());
     expect(await screen.findByRole("alert")).toHaveTextContent("Network unavailable");
     expect(screen.getByRole("button", { name: "I’m not ready" })).toBeDisabled();
+    for (const radio of screen.getAllByRole("radio")) expect(radio).toBeDisabled();
     expect(screen.queryByRole("heading", { name: /both players confirmed/i })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Try reconnecting" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "I’m not ready" })).toBeEnabled());
@@ -437,5 +442,225 @@ describe("Stage 2 connection recovery", () => {
     const view = renderHook(() => useRoomClient());
     await waitFor(() => expect(view.result.current.loading).toBe(false));
     expect(view.result.current.error).toBe("We could not reach the room. Please try again.");
+  });
+});
+
+
+describe("Stage 2.5 shared theme selection", () => {
+  it("subscribes to room theme changes as well as player readiness", async () => {
+    current = room({ themeId: "jungle", themeLocked: false });
+    const view = renderHook(() => useRoomClient());
+    await waitFor(() => expect(view.result.current.live).toBe(true));
+    expect(socket.filters).toContainEqual(expect.objectContaining({ schema: "public", table: "quarrel_rooms", filter: `id=eq.${current!.id}` }));
+    expect(socket.filters).toContainEqual(expect.objectContaining({ schema: "public", table: "quarrel_players", filter: `room_id=eq.${current!.id}` }));
+    expect(socket.changesByTable.quarrel_rooms).toBeTypeOf("function");
+    expect(socket.changesByTable.quarrel_players).toBeTypeOf("function");
+  });
+
+  it("sends only a theme ID and preserves both player identities and readiness", async () => {
+    current = room({ themeId: "jungle", themeLocked: false, bothReady: true, players: [
+      { slot: "A", name: "Avery", ready: true, connected: true },
+      { slot: "B", name: "Blair", ready: true, connected: true },
+    ] });
+    const originalPlayers = structuredClone(current.players);
+    fetchMock.mockImplementation(async (path, options) => {
+      if (path === "/api/rooms/theme") {
+        const payload = JSON.parse(options!.body as string);
+        expect(payload).toEqual({ themeId: "superhero" });
+        current = { ...current!, themeId: payload.themeId };
+      }
+      return json(response(current));
+    });
+    const view = renderHook(() => useRoomClient());
+    await waitFor(() => expect(view.result.current.live).toBe(true));
+    await act(async () => { await view.result.current.setTheme("superhero"); });
+    expect(view.result.current.room?.themeId).toBe("superhero");
+    expect(view.result.current.room?.players).toEqual(originalPlayers);
+    expect(view.result.current.room?.bothReady).toBe(true);
+    expect(fetchMock.mock.calls.filter(([path]) => path === "/api/rooms/theme")).toHaveLength(1);
+  });
+
+  it("lets the host change all four settings without starting a debate", async () => {
+    const user = userEvent.setup();
+    current = room({ themeId: "jungle", themeLocked: false, bothReady: true, players: [
+      { slot: "A", name: "Avery", ready: true, connected: true },
+      { slot: "B", name: "Blair", ready: true, connected: true },
+    ] });
+    fetchMock.mockImplementation(async (path, options) => {
+      if (path === "/api/rooms/theme") current = { ...current!, themeId: JSON.parse(options!.body as string).themeId };
+      return json(response(current));
+    });
+    render(<MultiplayerApp />);
+    await screen.findByRole("button", { name: "I’m not ready" });
+    const picker = within(screen.getByRole("radiogroup", { name: "Room theme" }));
+    expect(picker.getAllByRole("radio")).toHaveLength(4);
+    await user.click(picker.getByRole("radio", { name: "Jungle theme" }));
+    expect(fetchMock.mock.calls.some(([path]) => path === "/api/rooms/theme")).toBe(false);
+    for (const id of ["superhero", "detective", "courtroom", "jungle"] as const) {
+      const theme = getTheme(id);
+      await user.click(picker.getByRole("radio", { name: `${theme.displayName} theme` }));
+      await waitFor(() => expect(picker.getByRole("radio", { name: `${theme.displayName} theme` })).toHaveAttribute("aria-checked", "true"));
+      const arena = within(screen.getByRole("region", { name: theme.environmentLabel }));
+      expect(arena.getByRole("img", { name: theme.judge.description })).toBeInTheDocument();
+      for (const slot of ["A", "B"] as const) {
+        const character = theme.players.characters[theme.players.defaults[slot]];
+        expect(arena.getByRole("img", { name: character.description })).toBeInTheDocument();
+      }
+      expect(arena.getAllByRole("img")).toHaveLength(3);
+      expect(document.querySelector<HTMLElement>(".theme-shell")?.style.getPropertyValue("--theme-canvas")).toBe(theme.palette.canvas);
+      expect(document.querySelector<HTMLElement>(".theme-shell")?.style.getPropertyValue("--ink")).toBe(theme.palette.ink);
+      expect(screen.getByRole("heading", { name: "Ready to start — both players confirmed!" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "I’m not ready" })).toHaveAttribute("aria-pressed", "true");
+      expect(screen.queryByRole("button", { name: /start debate/i })).not.toBeInTheDocument();
+    }
+    expect(fetchMock.mock.calls.filter(([path]) => path === "/api/rooms/theme")).toHaveLength(4);
+  });
+
+  it("supports radio-group keyboard navigation and preserves focus after synchronized selection", async () => {
+    const user = userEvent.setup();
+    current = room({ themeId: "jungle", themeLocked: false });
+    fetchMock.mockImplementation(async (path, options) => {
+      if (path === "/api/rooms/theme") current = { ...current!, themeId: JSON.parse(options!.body as string).themeId };
+      return json(response(current));
+    });
+    render(<MultiplayerApp />);
+    await screen.findByRole("button", { name: "I’m ready" });
+    await user.click(screen.getByRole("radio", { name: "Jungle theme" }));
+    for (const [key, id] of [
+      ["ArrowRight", "superhero"], ["ArrowDown", "detective"], ["ArrowLeft", "superhero"],
+      ["ArrowUp", "jungle"], ["ArrowLeft", "courtroom"], ["Home", "jungle"],
+      ["End", "courtroom"], ["ArrowRight", "jungle"],
+    ] as const) {
+      await user.keyboard(`{${key}}`);
+      const radio = screen.getByRole("radio", { name: `${getTheme(id).displayName} theme` });
+      await waitFor(() => expect(radio).toHaveAttribute("aria-checked", "true"));
+      expect(radio).toHaveFocus();
+      expect(radio).toHaveAttribute("tabindex", "0");
+      expect(screen.getAllByRole("radio").filter(option => option.getAttribute("tabindex") === "0")).toHaveLength(1);
+    }
+    const mutationCount = fetchMock.mock.calls.filter(([path]) => path === "/api/rooms/theme").length;
+    await user.keyboard("{Home}x");
+    expect(fetchMock.mock.calls.filter(([path]) => path === "/api/rooms/theme")).toHaveLength(mutationCount);
+    expect(screen.getByRole("radio", { name: "Jungle theme" })).toHaveFocus();
+  });
+
+  it("does not steal readiness focus after a keyboard command keeps the current theme", async () => {
+    const user = userEvent.setup();
+    current = room({ themeId: "jungle", themeLocked: false });
+    fetchMock.mockImplementation(async (path, options) => {
+      if (path === "/api/rooms/ready") current = { ...current!, players: current!.players.map(player => ({ ...player, ready: JSON.parse(options!.body as string).ready })) };
+      return json(response(current));
+    });
+    render(<MultiplayerApp />);
+    await screen.findByRole("button", { name: "I’m ready" });
+    await user.click(screen.getByRole("radio", { name: "Jungle theme" }));
+    await user.keyboard("{Home}");
+    await user.click(screen.getByRole("button", { name: "I’m ready" }));
+    const ready = await screen.findByRole("button", { name: "I’m not ready" });
+    expect(ready).toHaveFocus();
+    expect(fetchMock.mock.calls.some(([path]) => path === "/api/rooms/theme")).toBe(false);
+  });
+
+  it("shows live host changes to Player B, retains them on remount, and keeps selection read-only", async () => {
+    const user = userEvent.setup();
+    current = room({ you: "B", themeId: "superhero", themeLocked: false, players: [
+      { slot: "A", name: "Avery", ready: false, connected: true },
+      { slot: "B", name: "Blair", ready: true, connected: true },
+    ] });
+    const view = render(<MultiplayerApp />);
+    await screen.findByRole("button", { name: "I’m not ready" });
+    await waitFor(() => expect(socket.changesByTable.quarrel_rooms).toBeDefined());
+    for (const radio of screen.getAllByRole("radio")) expect(radio).toBeDisabled();
+    await user.click(screen.getByRole("radio", { name: "Jungle theme" }));
+    expect(fetchMock.mock.calls.some(([path]) => path === "/api/rooms/theme")).toBe(false);
+    current = { ...current!, themeId: "detective" };
+    act(() => socket.changesByTable.quarrel_rooms());
+    expect(await screen.findByRole("region", { name: getTheme("detective").environmentLabel })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Detective theme" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("button", { name: "I’m not ready" })).toHaveAttribute("aria-pressed", "true");
+    view.unmount();
+    render(<MultiplayerApp />);
+    expect(await screen.findByRole("region", { name: getTheme("detective").environmentLabel })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Detective theme" })).toHaveAttribute("aria-checked", "true");
+    expect(fetchMock.mock.calls.some(([path]) => path === "/api/rooms/theme")).toBe(false);
+  });
+
+  it.each(["__proto__", "future-setting"])("renders Jungle for an invalid saved theme %s without changing it through the API", async invalid => {
+    current = room({ themeId: invalid as ThemeId, themeLocked: false });
+    render(<MultiplayerApp />);
+    await screen.findByRole("button", { name: "I’m ready" });
+    expect(screen.getByRole("region", { name: getTheme("jungle").environmentLabel })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Jungle theme" })).toHaveAttribute("aria-checked", "true");
+    expect(fetchMock.mock.calls.some(([path]) => path === "/api/rooms/theme")).toBe(false);
+  });
+
+  it("shows all previews but disables room selection before joining and after a future lock", async () => {
+    const user = userEvent.setup();
+    const view = render(<MultiplayerApp />);
+    await screen.findByRole("textbox", { name: "Your display name" });
+    for (const radio of screen.getAllByRole("radio")) expect(radio).toBeDisabled();
+    view.unmount();
+    current = room({ themeId: "courtroom", themeLocked: true });
+    render(<MultiplayerApp />);
+    await screen.findByRole("button", { name: "I’m ready" });
+    for (const radio of screen.getAllByRole("radio")) expect(radio).toBeDisabled();
+    await user.click(screen.getByRole("radio", { name: "Detective theme" }));
+    expect(fetchMock.mock.calls.some(([path]) => path === "/api/rooms/theme")).toBe(false);
+    expect(screen.getByRole("radio", { name: "Courtroom theme" })).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("keeps selection pending until confirmed and leaves the existing world intact if the server rejects it", async () => {
+    const user = userEvent.setup();
+    current = room({ themeId: "jungle", themeLocked: false });
+    let release!: (value: Response) => void;
+    fetchMock.mockImplementation(async path => path === "/api/rooms/theme" ? new Promise(resolve => { release = resolve; }) : json(response(current)));
+    render(<MultiplayerApp />);
+    await screen.findByRole("button", { name: "I’m ready" });
+    await user.click(screen.getByRole("radio", { name: "Superhero theme" }));
+    expect(screen.getByRole("radiogroup", { name: "Room theme" })).toHaveAttribute("aria-busy", "true");
+    for (const radio of screen.getAllByRole("radio")) expect(radio).toBeDisabled();
+    expect(screen.getByRole("radio", { name: "Jungle theme" })).toHaveAttribute("aria-checked", "true");
+    await act(async () => release(json({ error: "This room’s setting is locked." }, 409)));
+    expect(await screen.findByRole("alert")).toHaveTextContent("This room’s setting is locked.");
+    expect(screen.getByRole("radio", { name: "Jungle theme" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("region", { name: getTheme("jungle").environmentLabel })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "I’m ready" })).toBeEnabled();
+  });
+
+  it("replaces a local dialogue preview with the newly selected theme’s greeting", async () => {
+    const user = userEvent.setup();
+    current = room({ themeId: "superhero", themeLocked: false });
+    fetchMock.mockImplementation(async (path, options) => {
+      if (path === "/api/rooms/theme") current = { ...current!, themeId: JSON.parse(options!.body as string).themeId };
+      return json(response(current));
+    });
+    render(<MultiplayerApp />);
+    await screen.findByRole("button", { name: "I’m ready" });
+    await user.selectOptions(screen.getByRole("combobox", { name: "Judge dialogue preview" }), "evidence");
+    expect(within(screen.getByRole("region", { name: getTheme("superhero").environmentLabel })).getByRole("status")).toHaveTextContent(getTheme("superhero").judge.samples[1].text);
+    await user.click(screen.getByRole("radio", { name: "Detective theme" }));
+    const office = await screen.findByRole("region", { name: getTheme("detective").environmentLabel });
+    expect(within(office).getByRole("status")).toHaveTextContent(getTheme("detective").judge.dialogue.lobby);
+    expect(screen.getByRole("combobox", { name: "Judge dialogue preview" })).toHaveValue("lobby");
+    expect(screen.queryByText(getTheme("superhero").judge.samples[1].text)).not.toBeInTheDocument();
+  });
+
+  it.each(themes)("previews $displayName judge samples locally without changing room state", async theme => {
+    const user = userEvent.setup();
+    current = room({ themeId: theme.id, themeLocked: false });
+    render(<MultiplayerApp />);
+    await screen.findByRole("button", { name: "I’m ready" });
+    const select = screen.getByRole("combobox", { name: "Judge dialogue preview" });
+    const mutationCount = () => fetchMock.mock.calls.filter(([, options]) => options?.method === "POST" && !(options.body === "{}")).length;
+    const before = mutationCount();
+    for (const sample of theme.judge.samples) {
+      await user.selectOptions(select, sample.id);
+      expect(within(screen.getByRole("region", { name: theme.environmentLabel })).getByRole("status")).toHaveTextContent(sample.text);
+    }
+    await user.selectOptions(select, "lobby");
+    expect(within(screen.getByRole("region", { name: theme.environmentLabel })).getByRole("status")).toHaveTextContent(theme.judge.dialogue.lobby);
+    expect(mutationCount()).toBe(before);
+    expect(current?.themeId).toBe(theme.id);
+    expect(current?.players[0].ready).toBe(false);
   });
 });

@@ -1,4 +1,4 @@
-name: quarrel.io Stage 1 and 2 checks
+name: quarrel.io Stage 1, 2 and 2.5 checks
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  stage-1-and-2:
+  stage-1-2-and-25:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
