@@ -14,10 +14,10 @@ export const courtroom: ThemeConfig = {
     debateDialogue: {
       setup: "Player A, please propose the question before the court and a position for each party.",
       awaitingApproval: "Player B, please review the proposed topic and positions. Confirm your agreement or request amendments.",
-      introduction: "The question before the court: “{topic}” {speaker}, please begin. Both openings remain private until this round concludes.",
+      introduction: "Welcome, {playerA} and {playerB}. The question before the court: “{topic}” {speaker}, please begin. Both openings remain private until this round concludes.",
       opening: "Opening statements. {speaker} has the floor. Both statements remain private until this round concludes.",
       rebuttal: "The court will now hear rebuttals. {speaker}, please address the other party’s opening argument.",
-      questions: "The final round uses a scripted practice question. {speaker}, please respond. No AI evaluation is involved.",
+      questions: "Both positions are on the record. {speaker}, please clarify the point raised in your question.",
       complete: "All three rounds are concluded. The record is available below. No winner or AI verdict is determined in this stage.",
     },
     samples: [

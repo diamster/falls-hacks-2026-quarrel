@@ -190,6 +190,41 @@ describe("Stage 3 active turn", () => {
 });
 
 describe("Stage 3 record and presentation", () => {
+  it("preserves each saved judge question next to its own answer in the completed record", () => {
+    const questions = [
+      { id: "question-a", slot: "A" as const, source: "ai" as const, text: "How would you measure the effect of later library hours?" },
+      { id: "question-b", slot: "B" as const, source: "fallback" as const, text: "What staffing cost would change your view?" },
+    ];
+    const answers = [
+      { id: "answer-a", slot: "A" as const, phase: "questions" as const, turnIndex: 4, text: "I would compare attendance during exam weeks.", submittedAt: "2030-01-01T00:03:10Z", status: "submitted" as const },
+      { id: "answer-b", slot: "B" as const, phase: "questions" as const, turnIndex: 5, text: "A funded staffing pilot would change my view.", submittedAt: "2030-01-01T00:03:20Z", status: "submitted" as const },
+    ];
+    const completed = debate({ phase: "verdict", questions, history: answers });
+    const view = render(<DebateHistory debate={completed} players={room().players} you="A"/>);
+    const entries = within(screen.getByRole("region", { name: "Judge questions" })).getAllByRole("listitem");
+    expect(within(entries[0]).getByText(questions[0].text)).toBeInTheDocument();
+    expect(within(entries[0]).getByText(answers[0].text!)).toBeInTheDocument();
+    expect(within(entries[0]).getByText("Judge’s question · AI")).toBeInTheDocument();
+    expect(within(entries[0]).queryByText(questions[1].text)).not.toBeInTheDocument();
+    expect(within(entries[1]).getByText(questions[1].text)).toBeInTheDocument();
+    expect(within(entries[1]).getByText(answers[1].text!)).toBeInTheDocument();
+    expect(within(entries[1]).getByText("Judge’s question · Fallback")).toBeInTheDocument();
+    view.unmount();
+    render(<DebateHistory debate={JSON.parse(JSON.stringify(completed))} players={room().players} you="B"/>);
+    expect(screen.getByLabelText("Judge’s question for Player A")).toHaveTextContent(questions[0].text);
+    expect(screen.getByLabelText("Judge’s question for Player B")).toHaveTextContent(questions[1].text);
+    expect(screen.getByText(answers[0].text!)).toBeInTheDocument();
+    expect(screen.getByText(answers[1].text!)).toBeInTheDocument();
+  });
+
+  it.each(["demo", "placeholder"] as const)("preserves a %s question even when its answer turn expired", source => {
+    const question = { id: "q", slot: "A" as const, source, text: "Which assumption should we examine first?" };
+    render(<DebateHistory debate={debate({ phase: "verdict", questions: [question], history: [{ id: "missed", slot: "A", phase: "questions", turnIndex: 4, text: null, submittedAt: null, status: "expired" }] })} players={room().players} you="A"/>);
+    expect(screen.getByText(question.text)).toBeInTheDocument();
+    expect(screen.getByText(`Judge’s question · ${source === "demo" ? "Demo" : "Scripted"}`)).toBeInTheDocument();
+    expect(screen.getByText("Answer not submitted")).toBeInTheDocument();
+  });
+
   const history = [
     { id: "a", slot: "A" as const, phase: "opening" as const, turnIndex: 0, text: "A’s opening", submittedAt: "2030-01-01T00:00:10Z", status: "submitted" as const },
     { id: "b", slot: "B" as const, phase: "opening" as const, turnIndex: 1, text: "B’s opening", submittedAt: "2030-01-01T00:00:20Z", status: "submitted" as const },

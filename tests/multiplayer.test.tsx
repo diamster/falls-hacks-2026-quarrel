@@ -772,3 +772,23 @@ describe("Stage 3 synchronized client", () => {
     expect(fetchMock.mock.calls).toHaveLength(requests);
   });
 });
+
+describe("Stage 4 synchronized judge client", () => {
+  it("sends a separate idempotent chat request and restores pending/history through snapshots", async () => {
+    current = room({debate:activeDebate(),judge:{enabled:true,mode:"demo",messages:[],pendingRequestId:null,messagesUsed:0,maxMessagesPerTurn:2,needsWork:false,preparingQuestions:false}});
+    fetchMock.mockImplementation(async (path,options)=>{
+      if(path==="/api/rooms/judge") {
+        expect(JSON.parse(options!.body as string)).toEqual({text:"Explain the other view",revision:2,turnIndex:0,requestKey:"24c35381-6e66-4f0f-9185-6b586e417057"});
+        current={...current!,judge:{...current!.judge!,pendingRequestId:"server-message-id",messagesUsed:1}};
+      }
+      return json(response(current));
+    });
+    const view=renderHook(()=>useRoomClient()); await waitFor(()=>expect(view.result.current.live).toBe(true));
+    await act(async()=>{expect(await view.result.current.askJudge("Explain the other view",2,0,"24c35381-6e66-4f0f-9185-6b586e417057")).toBe(true);});
+    expect(view.result.current.judgePending).toBe(true);expect(view.result.current.room?.debate?.turnIndex).toBe(0);
+    expect(fetchMock.mock.calls.some(([p])=>p==="/api/rooms/debate/argument")).toBe(false);
+    current={...current!,judge:{...current!.judge!,pendingRequestId:null,messages:[{id:"server-message-id",kind:"chat",slot:"A",turnIndex:0,playerText:"Explain the other view",text:"Both sides can define the evidence they need.",status:"complete",source:"demo",reaction:"speaking",createdAt:"2030-01-01T00:00:00Z",completedAt:"2030-01-01T00:00:01Z"}]}};
+    act(()=>socket.change!());await waitFor(()=>expect(view.result.current.judgePending).toBe(false));expect(view.result.current.room?.judge?.messages[0].text).toContain("Both sides");
+    view.unmount();expect(await view.result.current.askJudge("Unmounted",2,0,"24c35381-6e66-4f0f-9185-6b586e417057")).toBe(false);
+  });
+});

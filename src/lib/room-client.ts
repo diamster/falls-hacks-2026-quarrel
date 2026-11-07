@@ -47,6 +47,7 @@ export function useRoomClient() {
   const [error, setError] = useState("");
   const [clock, setClock] = useState<ServerClock | null>(null);
   const [remainingSeconds, setRemainingSeconds] = useState(0);
+  const [askingJudge, setAskingJudge] = useState(false);
   const mounted = useRef(false);
   const active = useRef<Promise<boolean> | null>(null);
   const controller = useRef<AbortController | null>(null);
@@ -193,6 +194,12 @@ export function useRoomClient() {
 
   return {
     room: data.room, loading, pending, offline, live, error, refresh, remainingSeconds,
+    judgePending: askingJudge || Boolean(data.room?.judge?.pendingRequestId),
+    askJudge: async (text: string, revision: number, turnIndex: number, requestKey: string) => {
+      setAskingJudge(true);
+      try { return await act("/api/rooms/judge", { text, revision, turnIndex, requestKey }); }
+      finally { if (mounted.current) setAskingJudge(false); }
+    },
     create: (name: string) => act("/api/rooms", { name }),
     join: (code: string, name: string) => act("/api/rooms/join", { code, name }),
     setTheme: (themeId: ThemeId) => act("/api/rooms/theme", { themeId }),

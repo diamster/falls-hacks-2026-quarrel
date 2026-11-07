@@ -14,10 +14,10 @@ export const superhero: ThemeConfig = {
     debateDialogue: {
       setup: "Every mission needs a brief. Player A, set the question and the two opposing positions.",
       awaitingApproval: "Mission brief received. Player B, approve both positions or signal what needs changing.",
-      introduction: "Tonight’s mission: “{topic}” {speaker}, send your opening signal. Both openings stay sealed until this round ends.",
+      introduction: "Welcome, {playerA} and {playerB}! Tonight’s mission: “{topic}” {speaker}, send your opening signal. Both openings stay sealed until this round ends.",
       opening: "First signal: opening statements. {speaker}, make your case. Both openings are sealed until the round ends.",
       rebuttal: "Time to inspect the other angle. {speaker}, your rebuttal is on the rooftop frequency.",
-      questions: "Final checkpoint. {speaker}, answer the scripted practice question. No AI analysis is running.",
+      questions: "Final checkpoint. {speaker}, let’s investigate your reasoning with a clarification question.",
       complete: "Mission logged: three rounds complete. The record is ready to review; no winner or AI verdict is assigned.",
     },
     samples: [

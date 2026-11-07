@@ -2,8 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { roomRoute } from "@/server/room-api";
 
-const mock = vi.hoisted(() => ({ rpc: vi.fn(), getUser: vi.fn(), refreshSession: vi.fn(), signInAnonymously: vi.fn(), createClient: vi.fn() }));
+const mock = vi.hoisted(() => ({ rpc: vi.fn(), getUser: vi.fn(), refreshSession: vi.fn(), signInAnonymously: vi.fn(), createClient: vi.fn(), after: vi.fn() }));
 vi.mock("@supabase/supabase-js", () => ({ createClient: mock.createClient }));
+vi.mock("next/server", async original => ({ ...await original<typeof import("next/server")>(), after: mock.after }));
 const session = { access_token: "signed-token", refresh_token: "refresh-token" };
 const room = { id: "room-id", code: "ABC234", you: "A", players: [{ slot: "A", name: "Lion", ready: false, connected: true }], bothReady: false, themeId: "jungle", themeLocked: false, mode: "solo", capacity: 2 };
 function req(action: string, body?: unknown, cookie = "", origin = "http://localhost:3000") {
@@ -17,6 +18,10 @@ const cookie = "quarrel_access=existing-token; quarrel_refresh=old-refresh";
 beforeEach(() => {
   vi.stubEnv("SUPABASE_URL", "http://localhost:54321");
   vi.stubEnv("SUPABASE_PUBLISHABLE_KEY", "public-key");
+  vi.stubEnv("JUDGE_SERVER_SECRET", "test-only-server-capability-value-1234");
+  vi.stubEnv("GEMINI_API_KEY", "");
+  vi.stubEnv("JUDGE_AI_MODE", "auto");
+  vi.stubEnv("JUDGE_MAX_MESSAGES_PER_TURN", "2");
   mock.createClient.mockReturnValue({ auth: mock, rpc: mock.rpc });
   mock.getUser.mockResolvedValue({ data: { user: { id: "verified-user" } }, error: null });
   mock.refreshSession.mockResolvedValue({ data: { session }, error: null });
@@ -184,7 +189,7 @@ describe("Stage 3 debate API boundaries", () => {
     ["propose", { topic: " Campus transit ", positionA: " Fund buses ", positionB: " Fund cycling ", revision: 2 }, "propose_quarrel_debate", { p_topic: "Campus transit", p_position_a: "Fund buses", p_position_b: "Fund cycling", p_revision: 2 }],
     ["approve", { revision: 2 }, "approve_quarrel_debate", { p_revision: 2 }],
     ["changes", { message: " Narrow the scope ", revision: 2 }, "request_quarrel_debate_changes", { p_message: "Narrow the scope", p_revision: 2 }],
-    ["start", { revision: 2 }, "start_quarrel_debate", { p_revision: 2 }],
+    ["start", { revision: 2 }, "start_quarrel_judged_debate", expect.objectContaining({ p_revision: 2, p_mode: "demo", p_message_limit: 2, p_server_key: "test-only-server-capability-value-1234", p_lines: expect.objectContaining({ themeId: "jungle" }) })],
     ["argument", { text: " A reason.\nA second reason. ", revision: 2, turnIndex: 0 }, "submit_quarrel_argument", { p_text: "A reason.\nA second reason.", p_revision: 2, p_turn_index: 0 }],
     ["advance", { revision: 2, turnIndex: 5 }, "advance_quarrel_debate", { p_revision: 2, p_turn_index: 5 }],
   ] as const)("maps %s to its verified-session RPC", async (action, body, rpc, params) => {
@@ -238,5 +243,62 @@ describe("Stage 3 debate API boundaries", () => {
     const response = await roomRoute(req("argument", { text: "A reason", revision: 1, turnIndex: 0 }, cookie), "argument");
     expect(response.status).toBe(409);
     expect((await response.json()).error).toEqual(expect.any(String));
+  });
+});
+
+describe("Stage 4 judge API boundary", () => {
+  const requestKey = "24c35381-6e66-4f0f-9185-6b586e417057";
+  const message = { text: "  Can you explain the other side?  ", revision: 2, turnIndex: 0, requestKey };
+  it("reserves a message with verified identity and server-only capability", async () => {
+    const result = await roomRoute(req("judge", message, cookie), "judge");
+    expect(result.status).toBe(200);
+    expect(mock.rpc).toHaveBeenCalledWith("begin_quarrel_judge_message", { p_text: "Can you explain the other side?", p_revision: 2, p_turn_index: 0, p_request_key: requestKey, p_server_key: "test-only-server-capability-value-1234" });
+    expect(await result.text()).not.toContain("test-only-server-capability");
+    expect(mock.after).not.toHaveBeenCalled();
+  });
+  it("schedules persisted work after responding rather than trusting a browser result", async () => {
+    mock.rpc.mockResolvedValue({ data: { ...room, judge: { needsWork: true } }, error: null });
+    const result = await roomRoute(req("judge", message, cookie), "judge");
+    expect(result.status).toBe(200); expect(mock.after).toHaveBeenCalledWith(expect.any(Function));
+  });
+  it.each(["", " ", "x".repeat(601), "bad\u0000text", null])("rejects invalid judge text", async text => {
+    expect((await roomRoute(req("judge", { ...message, text }, cookie), "judge")).status).toBe(400);
+    expect(mock.getUser).not.toHaveBeenCalled();
+  });
+  it("counts Unicode messages and caps the raw request", async () => {
+    expect((await roomRoute(req("judge", { ...message, text: "🌴".repeat(600) }, cookie), "judge")).status).toBe(200);
+    expect((await roomRoute(req("judge", { ...message, text: "x".repeat(9000) }, cookie), "judge")).status).toBe(413);
+  });
+  it.each(["", "not-a-uuid", null])("requires an idempotency nonce", async requestKey => {
+    expect((await roomRoute(req("judge", { ...message, requestKey }, cookie), "judge")).status).toBe(400);
+  });
+  it.each(["slot", "playerId", "response", "phase", "serverKey", "limit"])("rejects injected %s authority", async field => {
+    expect((await roomRoute(req("judge", { ...message, [field]: "injected" }, cookie), "judge")).status).toBe(400);
+    expect(mock.rpc).not.toHaveBeenCalled();
+  });
+  it("requires the session, exact origin and configured worker capability", async () => {
+    expect((await roomRoute(req("judge", message), "judge")).status).toBe(401);
+    expect((await roomRoute(req("judge", message, cookie, "https://other.test"), "judge")).status).toBe(403);
+    vi.stubEnv("JUDGE_SERVER_SECRET", "");
+    expect((await roomRoute(req("judge", message, cookie), "judge")).status).toBe(503);
+    expect(mock.rpc).not.toHaveBeenCalled();
+  });
+  it.each([["JUDGE_LIMIT_REACHED",429],["JUDGE_RATE_LIMITED",429],["JUDGE_BUSY",409],["JUDGE_PREPARING_QUESTIONS",409],["JUDGE_SERVER_UNAUTHORIZED",503]])("returns a safe %s response", async (message,status) => {
+    mock.rpc.mockResolvedValue({ data:null, error:{message} });
+    expect((await roomRoute(req("judge", {text:"Explain",revision:1,turnIndex:0,requestKey},cookie),"judge")).status).toBe(status);
+  });
+  it("uses the stored theme and configured mode when starting the judge", async () => {
+    vi.stubEnv("GEMINI_API_KEY", "server-only-test-api-key");
+    vi.stubEnv("JUDGE_MAX_MESSAGES_PER_TURN", "3");
+    mock.rpc.mockResolvedValue({data:{...room,themeId:"detective"},error:null});
+    const result=await roomRoute(req("start",{revision:2},cookie),"start");
+    expect(mock.rpc).toHaveBeenLastCalledWith("start_quarrel_judged_debate", expect.objectContaining({p_mode:"ai",p_message_limit:3,p_lines:expect.objectContaining({themeId:"detective"})}));
+    expect(await result.text()).not.toContain("server-only-test-api-key");
+  });
+  it("rejects missing rooms or database errors before judged start", async () => {
+    mock.rpc.mockResolvedValueOnce({data:null,error:null});
+    expect((await roomRoute(req("start",{revision:1},cookie),"start")).status).toBe(404);
+    mock.rpc.mockResolvedValueOnce({data:null,error:{message:"ROOM_EXPIRED"}});
+    expect((await roomRoute(req("start",{revision:1},cookie),"start")).status).toBe(410);
   });
 });

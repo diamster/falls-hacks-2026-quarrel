@@ -14,10 +14,10 @@ export const jungle: ThemeConfig = {
     debateDialogue: {
       setup: "Every good jungle debate needs a question! Player A, propose a topic and a clear position for each side.",
       awaitingApproval: "Two sides of the same banana! Player B, check the topic and positions before we begin.",
-      introduction: "The jungle question: “{topic}” {speaker}, plant your opening idea! Both openings stay private until this round ends.",
+      introduction: "Welcome, {playerA} and {playerB}! The jungle question: “{topic}” {speaker}, plant your opening idea! Both openings stay private until this round ends.",
       opening: "Round one: plant your idea! {speaker} has the floor. Both openings stay private until this round ends.",
       rebuttal: "Round two: let’s peel back the arguments. {speaker}, respond to the other opening with care.",
-      questions: "One final branch to explore! {speaker}, answer the practice question. This question is scripted, not AI-generated.",
+      questions: "One final branch to explore! {speaker}, help us understand your reasoning by answering the clarification question.",
       complete: "And that’s our jungle hearing! All three rounds are complete. No winner or AI verdict is assigned in this stage.",
     },
     samples: [

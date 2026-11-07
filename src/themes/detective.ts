@@ -14,10 +14,10 @@ export const detective: ThemeConfig = {
     debateDialogue: {
       setup: "A case begins with a question. Player A, put the topic and both positions on the record.",
       awaitingApproval: "Two accounts, one case file. Player B, check the proposed terms before the clock starts.",
-      introduction: "The case before us: “{topic}” {speaker}, give your opening account. Both statements stay sealed until this round ends.",
+      introduction: "Welcome, {playerA} and {playerB}. The case before us: “{topic}” {speaker}, give your opening account. Both statements stay sealed until this round ends.",
       opening: "Opening accounts. {speaker}, tell your story. Both statements remain sealed until the round is complete.",
       rebuttal: "The first accounts are in. {speaker}, examine the other argument. A hunch still needs a reason.",
-      questions: "One last detail. {speaker}, answer the scripted practice question. There’s no AI behind this inquiry.",
+      questions: "One last detail in the case. {speaker}, help fill the gap by answering the clarification question.",
       complete: "Three rounds in the file. Read the record at your leisure. No winner is named and no AI verdict has been made.",
     },
     samples: [

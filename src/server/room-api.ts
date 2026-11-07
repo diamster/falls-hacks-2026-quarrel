@@ -1,8 +1,9 @@
 import { createClient, type Session, type SupabaseClient } from "@supabase/supabase-js";
-import { NextRequest, NextResponse } from "next/server";
-import { isThemeId } from "@/themes";
+import { after, NextRequest, NextResponse } from "next/server";
+import { getTheme, isThemeId } from "@/themes";
+import { judgeServerConfig, processJudgeWork } from "./judge-worker";
 
-type Action = "session" | "create" | "join" | "ready" | "heartbeat" | "theme" | "propose" | "approve" | "changes" | "start" | "argument" | "advance";
+type Action = "session" | "create" | "join" | "ready" | "heartbeat" | "theme" | "propose" | "approve" | "changes" | "start" | "argument" | "advance" | "judge";
 const cookieNames = ["quarrel_access", "quarrel_refresh"] as const;
 const messages: Record<string, [number, string]> = {
   UNAUTHORIZED: [401, "Your player session has expired. Please reload and join again."],
@@ -37,6 +38,21 @@ const messages: Record<string, [number, string]> = {
   DUPLICATE_SUBMISSION: [409, "This turn already has a submitted argument."],
   ALREADY_SUBMITTED: [409, "This turn already has a submitted argument."],
   DEBATE_NOT_READY: [409, "Both players must approve the topic and their positions, then be connected and ready."],
+  JUDGE_NOT_CONFIGURED: [503, "The judge service needs its server configuration. Your room is saved."],
+  INVALID_JUDGE_MESSAGE: [400, "Enter a judge message between 1 and 600 characters."],
+  INVALID_REQUEST_KEY: [400, "This judge message needs a valid request ID."],
+  JUDGE_LIMIT_REACHED: [429, "You have used your judge messages for this turn."],
+  JUDGE_RATE_LIMITED: [429, "Wait a few seconds before asking the judge again."],
+  JUDGE_BUSY: [409, "The judge is answering a message. Please wait."],
+  JUDGE_NOT_ENABLED: [409, "This saved debate predates the interactive judge. Start a new room to use it."],
+  QUESTIONS_PENDING: [409, "The judge is preparing both questions. Your answer timer has not started."],
+  THEME_CHANGED: [409, "The room theme changed. Review it and start again."],
+  JUDGE_SERVER_UNAUTHORIZED: [503, "The judge service needs its server configuration. Your room is saved."],
+  INVALID_JUDGE_CONFIG: [503, "The judge service needs its server configuration. Your room is saved."],
+  JUDGE_UNAVAILABLE: [409, "This saved debate predates the interactive judge. Start a new room to use it."],
+  INVALID_JUDGE_REQUEST: [400, "This judge message needs a valid request ID."],
+  JUDGE_REQUEST_CONFLICT: [409, "That request ID belongs to a different message. Send a new message."],
+  JUDGE_PREPARING_QUESTIONS: [409, "The judge is preparing both questions. Your answer timer has not started."],
 };
 
 class RoomError extends Error {
@@ -102,7 +118,7 @@ async function input(request: NextRequest, action: Action): Promise<Record<strin
   const expectedOrigin = `${request.nextUrl.protocol}//${request.headers.get("host") || request.nextUrl.host}`;
   if (request.headers.get("origin") !== expectedOrigin) throw new RoomError(403, "This request must come from the room page.");
   if (!request.headers.get("content-type")?.startsWith("application/json")) throw new RoomError(415, "Send room requests as JSON.");
-  const maxBytes = action === "argument" ? 16_384 : action === "propose" ? 4096 : action === "changes" ? 2048 : 1024;
+  const maxBytes = action === "argument" ? 16_384 : action === "judge" ? 8192 : action === "propose" ? 4096 : action === "changes" ? 2048 : 1024;
   if (Number(request.headers.get("content-length")) > maxBytes) throw new RoomError(413, "The room request is too large.");
   const reader = request.body?.getReader();
   const chunks: Uint8Array[] = [];
@@ -131,6 +147,7 @@ async function input(request: NextRequest, action: Action): Promise<Record<strin
     create: ["name"], join: ["name", "code"], ready: ["ready"], heartbeat: [], theme: ["themeId"],
     propose: ["topic", "positionA", "positionB", "revision"], approve: ["revision"],
     changes: ["message", "revision"], start: ["revision"], argument: ["text", "revision", "turnIndex"], advance: ["revision", "turnIndex"],
+    judge: ["text", "revision", "turnIndex", "requestKey"],
   }[action];
   if (!body || Array.isArray(body) || typeof body !== "object" || Object.keys(body).some(key => !fields.includes(key))) {
     throw new RoomError(400, "Unexpected room request fields. Player identity comes from your session.");
@@ -145,7 +162,7 @@ async function input(request: NextRequest, action: Action): Promise<Record<strin
   }
   if (action === "ready" && typeof body.ready !== "boolean") failDatabase("INVALID_READY");
   if (action === "theme" && !isThemeId(body.themeId)) failDatabase("INVALID_THEME");
-  if (["propose", "approve", "changes", "start", "argument", "advance"].includes(action)) {
+  if (["propose", "approve", "changes", "start", "argument", "advance", "judge"].includes(action)) {
     if (!Number.isInteger(body.revision) || (body.revision as number) < 0 || (body.revision as number) > 2_147_483_646) failDatabase("INVALID_REVISION");
   }
   function boundedText(field: string, max: number, error: string, multiline = false) {
@@ -162,7 +179,11 @@ async function input(request: NextRequest, action: Action): Promise<Record<strin
   }
   if (action === "changes") boundedText("message", 240, "INVALID_CHANGE_REQUEST");
   if (action === "argument") boundedText("text", 2000, "INVALID_ARGUMENT", true);
-  if (action === "argument" || action === "advance") {
+  if (action === "judge") {
+    boundedText("text", 600, "INVALID_JUDGE_MESSAGE", true);
+    if (typeof body.requestKey !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.requestKey)) failDatabase("INVALID_REQUEST_KEY");
+  }
+  if (action === "argument" || action === "advance" || action === "judge") {
     if (!Number.isInteger(body.turnIndex) || (body.turnIndex as number) < 0 || (body.turnIndex as number) > 5) failDatabase("INVALID_TURN");
   }
   return body;
@@ -186,6 +207,8 @@ export async function roomRoute(request: NextRequest, action: Action) {
       response = NextResponse.json({ room: null });
     } else {
       renewed = auth.session;
+      const judge = judgeServerConfig();
+      if ((action === "start" || action === "judge") && !judge.serverKey) failDatabase("JUDGE_NOT_CONFIGURED");
       const rpc: Record<Action, [string, Record<string, unknown>]> = {
         session: ["get_quarrel_room", {}],
         create: ["create_quarrel_room", { p_name: body.name }],
@@ -196,13 +219,26 @@ export async function roomRoute(request: NextRequest, action: Action) {
         propose: ["propose_quarrel_debate", { p_topic: body.topic, p_position_a: body.positionA, p_position_b: body.positionB, p_revision: body.revision }],
         approve: ["approve_quarrel_debate", { p_revision: body.revision }],
         changes: ["request_quarrel_debate_changes", { p_message: body.message, p_revision: body.revision }],
-        start: ["start_quarrel_debate", { p_revision: body.revision }],
+        start: ["start_quarrel_judged_debate", { p_revision: body.revision, p_server_key: judge.serverKey, p_mode: judge.mode, p_message_limit: judge.messageLimit }],
         argument: ["submit_quarrel_argument", { p_text: body.text, p_revision: body.revision, p_turn_index: body.turnIndex }],
         advance: ["advance_quarrel_debate", { p_revision: body.revision, p_turn_index: body.turnIndex }],
+        judge: ["begin_quarrel_judge_message", { p_text: body.text, p_revision: body.revision, p_turn_index: body.turnIndex, p_request_key: body.requestKey, p_server_key: judge.serverKey }],
       };
       const [name, params] = rpc[action];
+      if (action === "start") {
+        const current = await auth.db.rpc("get_quarrel_room");
+        if (current.error) failDatabase(current.error.message);
+        if (!current.data) failDatabase("ROOM_NOT_FOUND");
+        const theme = getTheme(current.data.themeId);
+        params.p_lines = { ...theme.judge.debateDialogue, themeId: theme.id };
+      }
       const { data, error } = await (auth.db as SupabaseClient).rpc(name, params);
       if (error) failDatabase(error.message);
+      if (data?.judge?.needsWork && judge.serverKey) {
+        // The response exposes only the persisted pending job. Work survives the
+        // response lifecycle; a database claim prevents refreshes duplicating it.
+        after(() => processJudgeWork(auth.db, judge.serverKey).then(() => {}));
+      }
       response = NextResponse.json({ room: data, ...(data ? { realtime: { url, key, accessToken: auth.access } } : {}) });
     }
   } catch (error) {

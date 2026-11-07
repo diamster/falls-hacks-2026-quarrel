@@ -1,5 +1,6 @@
 import type { GameMode, PlayerIdentity, TeamId } from "./game-modes";
 import type { DebateSnapshot } from "./debate-types";
+import type { JudgeSnapshot } from "./judge-types";
 export type PlayerSlot = "A" | "B";
 
 export interface RoomPlayer {
@@ -25,6 +26,7 @@ export interface RoomSnapshot {
   mode?: GameMode;
   capacity?: number;
   debate?: DebateSnapshot;
+  judge?: JudgeSnapshot;
 }
 
 export interface RoomResponse {

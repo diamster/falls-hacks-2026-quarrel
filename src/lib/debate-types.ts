@@ -13,12 +13,12 @@ export interface DebateEntry {
   status: "submitted" | "expired";
 }
 
-/** Stage 4 can supply a different provider; no AI is connected in Stage 3. */
+/** Saved once before either timed answer begins. */
 export interface DebateQuestion {
   slot: PlayerSlot;
   id: string;
   text: string;
-  source: "placeholder";
+  source: "placeholder" | "ai" | "demo" | "fallback";
 }
 
 /** A member-filtered database snapshot, never a browser-authorized transition. */

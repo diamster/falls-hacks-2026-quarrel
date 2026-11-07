@@ -14,13 +14,67 @@ const mockedClient = vi.mocked(useRoomClient);
 const state = (overrides: Partial<DebateSnapshot> = {}): DebateSnapshot => ({ phase: "setup", topic: "Should lectures be recorded?", positionA: "Record all lectures", positionB: "Recording should be optional", revision: 3, approvedA: true, approvedB: false, changeRequest: null, activeSlot: null, turnIndex: null, turnDeadline: null, serverNow: "2030-01-01T00:00:00Z", startedAt: null, history: [], questions: [], ...overrides });
 const room = (debate: DebateSnapshot, overrides: Partial<RoomSnapshot> = {}): RoomSnapshot => ({ id: "room-id", code: "ABC234", expiresAt: "2030-01-02T00:00:00Z", you: "A", players: [{ slot: "A", name: "Avery", ready: true, connected: true }, { slot: "B", name: "Blair", ready: true, connected: true }], bothReady: true, themeId: "jungle", themeLocked: debate.phase !== "setup", debate, ...overrides });
 function client(current: RoomSnapshot) {
-  return { room: current, loading: false, pending: false, offline: false, live: true, error: "", remainingSeconds: 45,
+  return { room: current, loading: false, pending: false, judgePending: false, offline: false, live: true, error: "", remainingSeconds: 45,
+    askJudge: vi.fn().mockResolvedValue(true),
     refresh: vi.fn().mockResolvedValue(true), create: vi.fn().mockResolvedValue(true), join: vi.fn().mockResolvedValue(true), setTheme: vi.fn().mockResolvedValue(true), setReady: vi.fn().mockResolvedValue(true), proposeTopic: vi.fn().mockResolvedValue(true), approveTopic: vi.fn().mockResolvedValue(true), requestChanges: vi.fn().mockResolvedValue(true), startDebate: vi.fn().mockResolvedValue(true), submitArgument: vi.fn().mockResolvedValue(true),
   };
 }
 beforeEach(() => { window.history.replaceState({}, "", "/"); });
 
 describe("Stage 3 app composition", () => {
+  it("does not label a pending judge request as an official argument submission", async () => {
+    const user = userEvent.setup();
+    const snapshot = room(state({ phase: "opening", approvedB: true, activeSlot: "A", turnIndex: 0, turnDeadline: "2030-01-01T00:00:45Z" }));
+    snapshot.judge = { enabled: true, mode: "demo", messages: [], pendingRequestId: null, messagesUsed: 0, maxMessagesPerTurn: 2, needsWork: false, preparingQuestions: false };
+    let current = client(snapshot); mockedClient.mockReturnValue(current);
+    const view = render(<MultiplayerApp/>);
+    const input = screen.getByRole("textbox", { name: "Your opening statement" });
+    fireEvent.change(input, { target: { value: "My unfinished official argument." } });
+    current = { ...current, pending: true, judgePending: true }; mockedClient.mockReturnValue(current); view.rerender(<MultiplayerApp/>);
+    expect(screen.queryByRole("button", { name: "Submitting…" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Submit argument" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Judge is thinking/ })).toBeDisabled();
+    expect(input).toBeEnabled(); expect(input).toHaveValue("My unfinished official argument.");
+    expect(current.submitArgument).not.toHaveBeenCalled();
+    fireEvent.change(input, { target: { value: "My completed official argument." } });
+    current = { ...current, pending: false }; mockedClient.mockReturnValue(current); view.rerender(<MultiplayerApp/>);
+    expect(screen.getByRole("button", { name: "Submit argument" })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "Submit argument" }));
+    expect(current.submitArgument).toHaveBeenCalledExactlyOnceWith("My completed official argument.", 3, 0);
+    current = { ...current, pending: true, judgePending: false }; mockedClient.mockReturnValue(current); view.rerender(<MultiplayerApp/>);
+    expect(screen.getByRole("button", { name: "Submitting…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Ask Judge" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /Judge is thinking/ })).not.toBeInTheDocument();
+  });
+
+  it("keeps judge messages separate from arguments and waits for saved clarification questions", async () => {
+    const user = userEvent.setup();
+    const snapshot = room(state({ phase: "opening", approvedB: true, activeSlot: "A", turnIndex: 0, turnDeadline: "2030-01-01T00:00:45Z" }));
+    snapshot.judge = { enabled: true, mode: "demo", messages: [], pendingRequestId: null, messagesUsed: 0, maxMessagesPerTurn: 2, needsWork: false, preparingQuestions: false };
+    let current = client(snapshot); mockedClient.mockReturnValue(current);
+    const view = render(<MultiplayerApp/>);
+    expect(screen.getByRole("button", { name: "Submit argument" })).toBeDisabled();
+    await user.type(screen.getByRole("textbox", { name: "Message to the judge" }), "Help me clarify my position.");
+    await user.click(screen.getByRole("button", { name: "Ask Judge" }));
+    expect(current.askJudge).toHaveBeenCalledWith("Help me clarify my position.", 3, 0, expect.any(String));
+    expect(current.submitArgument).not.toHaveBeenCalled();
+    const asking = { ...snapshot, judge: { ...snapshot.judge, pendingRequestId: "request-1" } };
+    current = client(asking); mockedClient.mockReturnValue(current); view.rerender(<MultiplayerApp/>);
+    expect(view.container.querySelector("[data-judge-id]")).toHaveAttribute("data-motion", "thinking");
+    expect(screen.getByRole("button", { name: /Judge is thinking/ })).toBeDisabled();
+    const preparing = { ...snapshot, judge: { ...snapshot.judge, preparingQuestions: true }, debate: { ...snapshot.debate!, phase: "questions" as const, turnIndex: 4, activeSlot: null, turnDeadline: null } };
+    current = client(preparing); mockedClient.mockReturnValue(current); view.rerender(<MultiplayerApp/>);
+    expect(screen.getByRole("heading", { name: "The judge is preparing your questions" })).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Your answer" })).not.toBeInTheDocument();
+    expect(view.container.querySelector(".turn-timer strong")).toHaveTextContent("…");
+    const ready = { ...preparing, judge: { ...snapshot.judge, preparingQuestions: false }, debate: { ...preparing.debate, activeSlot: "A" as const, turnDeadline: "2030-01-01T00:01:30Z", questions: [{ id: "saved-q-a", slot: "A" as const, source: "ai" as const, text: "How would recordings affect participation?" }] } };
+    current = { ...client(ready), remainingSeconds: 30 }; mockedClient.mockReturnValue(current); view.rerender(<MultiplayerApp/>);
+    expect(screen.getByRole("textbox", { name: "Your answer" })).toBeInTheDocument();
+    expect(screen.getByText("AI CLARIFICATION QUESTION")).toBeInTheDocument();
+    expect(screen.getByRole("timer")).toHaveTextContent("00:30");
+    expect(screen.getByRole("log", { name: "Judge conversation" })).toBeInTheDocument();
+  });
+
   it("connects host setup, proposal, readiness and start to the shared client callbacks", async () => {
     const user = userEvent.setup();
     let current = client(room(state())); mockedClient.mockReturnValue(current);

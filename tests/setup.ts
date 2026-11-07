@@ -2,6 +2,10 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterEach, beforeEach, expect, vi } from "vitest";
 
+// Next enforces this boundary during bundling; unit tests run server modules
+// directly and replace only the marker package, never their implementation.
+vi.mock("server-only", () => ({}));
+
 // jsdom has no native dialog implementation. This shim supplies only the
 // open/close DOM contract; it intentionally does not fake focus trapping,
 // Escape handling, painting, or the browser's top layer.

@@ -16,9 +16,10 @@ export function PixelCharacter({ theme, slot, characterId, displayName, state = 
   </div>;
 }
 
-export function JudgeCharacter({ theme, state = "idle", paused = false }: { theme: ThemeConfig; state?: CharacterState; paused?: boolean }) {
-  return <div className="character character--lemur" data-judge-id={theme.judge.id} data-state={state} data-motion={isAnimatedState(state) ? state : "idle"} data-paused={paused}>
+export function JudgeCharacter({ theme, state = "idle", paused = false, interactive = false }: { theme: ThemeConfig; state?: CharacterState; paused?: boolean; interactive?: boolean }) {
+  const animated = isAnimatedState(state) || (interactive && ["listening", "thinking", "questioning", "surprised"].includes(state));
+  return <div className="character character--lemur" data-judge-id={theme.judge.id} data-state={state} data-motion={animated ? state : "idle"} data-interactive={interactive} data-paused={paused}>
     <div className="character-sprite"><CharacterAsset assetId={theme.judge.assetId} label={theme.judge.description}/></div>
-    <span className="sr-only">{theme.judge.displayName}: {state}{!isAnimatedState(state) ? ", placeholder using idle pose" : ""}</span>
+    <span className="sr-only">{theme.judge.displayName}: {state}{!animated ? ", placeholder using idle pose" : ""}</span>
   </div>;
 }
