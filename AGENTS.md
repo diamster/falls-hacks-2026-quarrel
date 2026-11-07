@@ -1,6 +1,20 @@
-# quarrel.io — Stage 4 boundary
+# quarrel.io — Stage 5 boundary
 
 This is the standalone quarrel.io repository: `diamster/falls-hacks-2026-quarrel`. All future quarrel.io changes and pushes belong here. The Next.js app lives at the repository root. Do not use `falls-hacks-2026-ideas` or the SFU campus checkout for this app.
+
+## Stage 5 (current) — Lawyer Sidekick Debate
+
+Stage 5 is authorized on `quarrel-stage-5`. The full specification is `docs/stage-5-handoff.md`; read it first. It is the explicit user instruction that the Stage 4 rules below require, and where it conflicts with them, the handoff wins:
+
+- Replace the opening/rebuttal/question phases with planner-generated subtopics, per-subtopic chess clocks, AI lawyer rewrites, judge summaries per subtopic and a final jury verdict.
+- Remove Ask Judge chat, clarification questions, the concealed opening reveal and the placeholder verdict from the playable flow. Keep their existing tables and Cloud data; never drop, reset or replay.
+- Only the jury job may name an outcome (side A, side B or split). Lawyer, judge and planner jobs still must not.
+- Objections are out of scope; do not implement the earlier "Stage 5 — Interactive Objection System" brief.
+- The provisional defaults in section 3 of the handoff are unconfirmed; ask the user before deviating from them.
+
+All other rules below (server-authoritative state, `auth.uid()` identity, RLS, no service role, server-only Gemini key and judge capability, Cloud migration review, testing and documentation) still apply. Record Stage 5 results in `docs/stage-5-testing.md`.
+
+## Stage 4 rules (still apply unless superseded above)
 
 Stage 4 is authorized on `quarrel-stage-4`: preserve the Stage 1–3 application, all four original themes (Jungle, Superhero, Detective and Courtroom), centralized theme/asset configuration and multiplayer lobby. Add the server-side Gemini judge, shared direct judge chat, contextual clarification questions, theme personalities and judge reactions. Preserve agreed topics/opposing positions, host start, sequential opening/rebuttal/question turns, server deadlines, concealed simultaneous opening reveal, and a placeholder verdict without a winner. Keep room creation/joining, verified anonymous sessions, readiness, connection status, refresh recovery and the two-seat limit working. Preserve the original Jungle SVG artwork and the Stage 1 local-only preview at `/preview`.
 
