@@ -53,7 +53,7 @@ describe("Public Stage 5 application", () => {
     session = client(room()); mockedClient.mockReturnValue(session); view.rerender(tree());
     expect(screen.getByRole("textbox", { name: /Your position/ })).toHaveValue("Attendance should be mandatory.");
     await user.click(screen.getByRole("button", { name: "I’m ready" })); expect(session.setReady).toHaveBeenCalledExactlyOnceWith(true);
-    expect(screen.getByRole("textbox", { name: "Shareable invitation" })).toHaveValue(`${window.location.origin}/?room=ABC234`);
+    expect(screen.getByRole("textbox", { name: "Shareable invitation" })).toHaveValue(`${window.location.origin}/share/?room=ABC234`);
     expect(window.location.search).toBe("?room=ABC234");
   });
 

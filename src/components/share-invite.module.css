@@ -1,0 +1,99 @@
+.shell {
+  min-height: 100svh;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 28px;
+  padding: 40px 24px;
+  color: var(--ink);
+  background-color: var(--theme-canvas);
+  background-image: radial-gradient(var(--line) .8px, transparent .8px);
+  background-size: 12px 12px;
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--font-pixel);
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1;
+}
+.brandMark {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  color: var(--theme-accent-ink);
+  background: var(--theme-accent);
+  border: 2px solid var(--ink);
+  box-shadow: 3px 3px 0 var(--ink);
+}
+.card {
+  width: min(100%, 540px);
+  min-width: 0;
+  border: 3px solid var(--ink);
+  background: var(--paper);
+  box-shadow: 8px 8px 0 var(--theme-secondary);
+}
+.heading {
+  position: relative;
+  padding: 34px 32px 26px;
+  border-bottom: 2px solid var(--ink);
+  background: var(--theme-panel);
+  text-align: center;
+}
+.seal {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 18px;
+  color: var(--theme-accent-ink);
+  background: var(--theme-accent);
+  border: 2px solid var(--ink);
+  box-shadow: 3px 3px 0 var(--ink);
+}
+.seal svg { width: 28px; height: 28px; }
+.eyebrow { margin: 0 0 9px; font-size: 11px; font-weight: 800; letter-spacing: 1.5px; }
+.code { margin: 0; font-family: var(--font-pixel); font-size: clamp(42px, 12vw, 70px); font-weight: 700; line-height: 1; letter-spacing: .09em; padding-left: .09em; }
+.invalidTitle { margin: 0; font-family: var(--font-pixel); font-size: 34px; line-height: 1.15; }
+.content { padding: 28px 32px; font-size: 15px; line-height: 1.65; overflow-wrap: anywhere; }
+.content p { margin: 0; }
+.form, .saved { display: flex; flex-direction: column; gap: 20px; }
+.field { display: grid; gap: 8px; text-align: left; font-weight: 700; font-size: 14px; }
+.field input {
+  width: 100%; min-width: 0; min-height: 50px; padding: 12px 14px;
+  border: 2px solid var(--line); border-radius: 0; background: var(--theme-header);
+  color: var(--ink); font: inherit; font-size: 16px; font-weight: 500;
+}
+.field input::placeholder { color: var(--muted); opacity: 1; }
+.field input:disabled { opacity: .65; }
+.shell input:focus-visible, .shell a:focus-visible, .shell button:focus-visible { outline: 3px solid var(--ink); outline-offset: 4px; }
+.join, .openRoom {
+  width: 100%; min-height: 50px; padding: 12px 18px;
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  border: 2px solid var(--ink); border-radius: 0; box-shadow: 3px 3px 0 var(--ink);
+  background: var(--theme-accent); color: var(--theme-accent-ink);
+  font-family: var(--font-pixel); font-size: 24px; font-weight: 600; line-height: 1;
+}
+.join:disabled { opacity: .6; }
+.note { color: var(--muted); font-size: 12px; line-height: 1.6; }
+.saved h2 { margin: 0; font-family: var(--font-pixel); font-size: 26px; line-height: 1.15; }
+.resume { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; font-weight: 700; text-decoration: underline; text-underline-offset: 4px; }
+.error { padding: 14px; margin-bottom: 20px; border: 2px solid var(--ink); background: var(--theme-panel); font-size: 14px; }
+.error button { margin-top: 12px; min-height: 44px; }
+.status { padding: 12px 0; color: var(--muted); }
+.footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 18px 32px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+.footer a { color: var(--ink); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+@media (max-width: 480px) {
+  .shell { padding: 28px 18px; gap: 24px; }
+  .card { box-shadow: 5px 5px 0 var(--theme-secondary); }
+  .heading { padding: 26px 20px 24px; }
+  .content { padding: 24px 20px; }
+  .footer { padding: 18px 20px; }
+  .eyebrow { font-size: 10px; letter-spacing: 1px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .shell *, .shell *::before, .shell *::after { animation: none !important; transition: none !important; }
+}

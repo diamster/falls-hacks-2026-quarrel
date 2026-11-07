@@ -131,7 +131,7 @@ describe("Stage 2 room lobby", () => {
     await user.type(name, "  Avery  ");
     await user.click(screen.getByRole("button", { name: "Create private room" }));
     const invitation = await screen.findByRole("textbox", { name: "Shareable invitation" });
-    expect(invitation).toHaveValue(`${window.location.origin}/?room=ABC234`);
+    expect(invitation).toHaveValue(`${window.location.origin}/share/?room=ABC234`);
     const players = within(screen.getByRole("list", { name: "Room players" }));
     expect(players.getAllByRole("listitem")).toHaveLength(2);
     expect(players.getByText("PLAYER A · LION · YOU")).toBeInTheDocument();
@@ -242,7 +242,7 @@ describe("Stage 2 room lobby", () => {
     await user.click(link);
     expect(select).toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Copy invite link" }));
-    expect(write).toHaveBeenCalledWith(`${window.location.origin}/?room=ABC234`);
+    expect(write).toHaveBeenCalledWith(`${window.location.origin}/share/?room=ABC234`);
     expect(await screen.findByText("Invitation copied.")).toBeInTheDocument();
     write.mockRejectedValueOnce(new Error("Clipboard unavailable"));
     await user.click(screen.getByRole("button", { name: "Copy invite link" }));
@@ -332,7 +332,7 @@ describe("Leaving a room to start again", () => {
     await user.click(screen.getByRole("button", { name: "Create a room" }));
     await user.type(name, "Avery again");
     await user.click(screen.getByRole("button", { name: "Create private room" }));
-    expect(await screen.findByRole("textbox", { name: "Shareable invitation" })).toHaveValue(`${window.location.origin}/?room=DEF567`);
+    expect(await screen.findByRole("textbox", { name: "Shareable invitation" })).toHaveValue(`${window.location.origin}/share/?room=DEF567`);
     expect(previous.code).toBe("ABC234");
     expect(previous.debate?.phase).toBe("verdict");
     expect(fetchMock.mock.calls.filter(([path]) => path === "/api/rooms/leave")).toHaveLength(1);

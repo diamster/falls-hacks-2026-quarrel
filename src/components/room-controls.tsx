@@ -70,7 +70,7 @@ export function RoomLobby({ room, pending, offline, live, onReady, onLeave, read
 }) {
   const [copied, setCopied] = useState("");
   const [shareUrl, setShareUrl] = useState("");
-  useEffect(() => { setShareUrl(`${window.location.origin}/?room=${encodeURIComponent(room.code)}`); }, [room.code]);
+  useEffect(() => { setShareUrl(`${window.location.origin}/share/?room=${encodeURIComponent(room.code)}`); }, [room.code]);
   const you = room.players.find(player => player.slot === room.you);
   const started = readOnly || (room.lawyer ? Boolean(room.lawyer.startedAt) : Boolean(room.debate && room.debate.phase !== "setup"));
   async function copy() {
