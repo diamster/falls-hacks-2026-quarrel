@@ -1,0 +1,45 @@
+.lab {
+  --lab-bg: #f6efe1; --lab-panel: #fffaf0; --lab-ink: #2c2724; --lab-muted: #6b5f55; --lab-line: #d9c9ae;
+  --lab-good: #2f7d4f; --lab-bad: #b0343f; --lab-stage: #efe3cb;
+  min-height: 100vh; background: var(--lab-bg); color: var(--lab-ink);
+  padding: 24px 16px 48px; font-family: var(--font-sans, system-ui, sans-serif);
+}
+.lab[data-dark="true"] { --lab-bg: #1d1b1f; --lab-panel: #29262b; --lab-ink: #f1ebe2; --lab-muted: #b5aca2; --lab-line: #454049; --lab-stage: #333037; --lab-good: #7fd39f; --lab-bad: #ff8f99; }
+.lab > * { max-width: 1200px; margin-inline: auto; }
+.lab h1 { font-family: var(--font-pixel, monospace); font-size: 40px; margin: 4px 0 8px; }
+.lab h2 { font-family: var(--font-pixel, monospace); font-size: 24px; margin: 36px 0 6px; }
+.lab h3 { font-size: 14px; margin: 0 0 8px; }
+.header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.header p { color: var(--lab-muted); font-size: 14px; max-width: 640px; }
+.header a { color: var(--lab-ink); font-weight: 700; }
+.eyebrow { font-size: 11px; letter-spacing: .12em; font-weight: 700; }
+.note { color: var(--lab-muted); font-size: 13px; margin: 0 0 14px; }
+.controls { display: flex; flex-wrap: wrap; gap: 12px 20px; margin-top: 20px; padding: 14px; background: var(--lab-panel); border: 2px solid var(--lab-line); }
+.controls label { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
+.controls select { padding: 4px 6px; background: var(--lab-bg); color: var(--lab-ink); border: 2px solid var(--lab-line); }
+.check input { width: 18px; height: 18px; }
+.lineup { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.seat { background: var(--lab-panel); border: 2px solid var(--lab-line); padding: 14px; }
+.row { display: flex; gap: 12px; flex-wrap: wrap; }
+.row figure, .grid figure { margin: 0; text-align: center; font-size: 12px; color: var(--lab-muted); }
+/* Sprite boxes use whole multiples of the 48-cell grid so lab previews never introduce uneven pixels themselves. */
+.sprite { width: 96px; height: 112px; background: var(--lab-stage); }
+.smallSprite { width: 96px; height: 112px; background: var(--lab-stage); }
+.sprite svg, .smallSprite svg, .sizeFrame svg { display: block; width: 100%; height: 100%; }
+.flashGroup { background: var(--lab-panel); border: 2px solid var(--lab-line); padding: 14px; margin-bottom: 12px; }
+.flashRow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.flashLabel { width: 56px; font-size: 12px; font-weight: 700; text-transform: uppercase; }
+.flashCard { margin: 0; padding: 4px; border: 2px solid var(--lab-line); background: var(--lab-bg); text-align: center; font-size: 11px; color: var(--lab-muted); }
+.flashCard[data-live="true"] { border-color: var(--lab-ink); }
+.sizes { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; }
+.sizeCard { margin: 0; padding: 10px; background: var(--lab-panel); border: 2px solid var(--lab-line); }
+.sizeCard figcaption { display: grid; gap: 2px; font-size: 12px; margin-top: 8px; }
+.sizeFrame { background: var(--lab-stage); }
+.sizeCard[data-even="true"] .verdict { color: var(--lab-good); font-weight: 700; }
+.sizeCard[data-even="false"] .verdict { color: var(--lab-bad); font-weight: 700; }
+.tableWrap { overflow-x: auto; }
+.table { border-collapse: collapse; width: 100%; font-size: 13px; background: var(--lab-panel); }
+.table th, .table td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--lab-line); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; }
+.grid figcaption { word-break: break-all; margin-top: 4px; }
+@media (max-width: 600px) { .lab h1 { font-size: 32px; } .header { flex-direction: column; } }
