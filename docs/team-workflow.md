@@ -1,6 +1,6 @@
 # Team workflow: three agents in parallel (Stage 6)
 
-**Written:** 2026-11-07 · **Base for Stage 6:** `stage5-ui` (= `main` at `345af08` + the one-screen lobby and Settings popup, `9c4e34d`)
+**Written:** 2026-11-07 · **Base for Stage 6:** `main`, once the pull request from `team-workflow` (one-screen lobby, Settings popup and this document) is merged
 
 Three coding agents work on quarrel.io at the same time: **GPT Astra** (strongest; backend + AI) and two **Claude Code** sessions (frontend lanes). Each lane **owns** a set of files. Only the owner edits them; anyone else who needs a change asks the owner (through the user) or leaves a note in the PR. This keeps merge conflicts small and prevents silent database overwrites.
 
@@ -10,9 +10,9 @@ Three coding agents work on quarrel.io at the same time: **GPT Astra** (stronges
 
 | Branch | Purpose |
 |---|---|
-| `main` | Stage 5 as merged by PR #1. Do not push to it directly. |
-| `stage5-ui` | `main` + one-screen lobby + Settings popup. **Start Stage 6 from here, not from `main`.** |
-| `quarrel-stage-6` | Stage 6 integration branch. Create it from `stage5-ui` when Stage 6 starts (Lane A), then every lane merges into it. |
+| `main` | Stage 5. Changes arrive only through reviewed pull requests. |
+| `team-workflow` | `main` + one-screen lobby + Settings popup (`stage5-ui`) + this document. **Open as a pull request into `main` for Lane A to review and merge.** |
+| `quarrel-stage-6` | Stage 6 integration branch. Lane A creates it from `main` **after** that pull request is merged; every lane merges into it. |
 | `stage6-backend` / `stage6-ui` / `stage6-art` | One working branch per lane, created from `quarrel-stage-6`. |
 
 ## Golden rules
@@ -80,7 +80,7 @@ Theme personality **text used in AI prompts** (lawyer, judge and jury personalit
 
 Things that changed or were found since your Stage 5 push:
 
-1. **`stage5-ui` changed the frontend; base Stage 6 on it.** Settings is now a popup: `settings-page.tsx` exports `SettingsPanel` (shared body), `SettingsDialog` (native `<dialog>`) and `SettingsPage` (`/settings` still works). `LawyerDebateView` has a new optional `onOpenSettings` prop. The pre-start lobby is the full-screen `theme-shell--fit` layout from Claude Cowork. No server, API, type or database changes. Results are in `docs/stage-5-testing.md` (last section).
+1. **Review and merge the pull request `team-workflow` → `main`.** It has no conflicts (`main` has not moved since `345af08`). It contains `stage5-ui` plus this document. Please run `npm run check` on Linux, look at the lobby and Settings popup in a browser, then merge, and create `quarrel-stage-6` from the merged `main`. What changed in the frontend: Settings is now a popup: `settings-page.tsx` exports `SettingsPanel` (shared body), `SettingsDialog` (native `<dialog>`) and `SettingsPage` (`/settings` still works). `LawyerDebateView` has a new optional `onOpenSettings` prop. The pre-start lobby is the full-screen `theme-shell--fit` layout from Claude Cowork. No server, API, type or database changes. Results are in `docs/stage-5-testing.md` (last section).
 2. **`tests/judge-config.test.ts` fails on Windows** (2 tests): it asserts file mode `0600`, but NTFS reports `0666`. Linux CI passes. Since two lanes work from Windows machines, consider skipping only the mode assertion when `process.platform === "win32"` so `npm run check` passes there, without weakening the Linux check.
 3. **The Vercel deployment commits are only on `quarrel-stage-4`** (`391c510`, `1fe14b1`: `vercel.json`, `.vercelignore`, `docs/vercel-deployment.md`, route config). They are not in `main`, `quarrel-stage-5` or `stage5-ui`. Bring them into `quarrel-stage-6` before any Stage 5/6 deployment (deploy only when the user authorizes it).
 4. **Line endings:** a Windows checkout converted files to CRLF and produced whole-file diffs. Please add a `.gitattributes` with `* text=auto eol=lf` (plus `*.png binary`) to stop this for everyone.
@@ -93,7 +93,7 @@ Things that changed or were found since your Stage 5 push:
 ```sh
 git clone https://github.com/diamster/falls-hacks-2026-quarrel.git quarrel-<lane>
 cd quarrel-<lane>
-git switch quarrel-stage-6          # once Lane A has created it from stage5-ui
+git switch quarrel-stage-6          # once Lane A has created it from main
 git switch -c stage6-<lane>         # stage6-backend / stage6-ui / stage6-art
 git config core.autocrlf input
 npm ci
@@ -109,5 +109,5 @@ All lanes share the **same Supabase Cloud project**. That is fine for rooms and 
 
 1. `npm run check` passes on your branch.
 2. `git fetch && git rebase origin/quarrel-stage-6`, fix conflicts in your own files, rerun the check.
-3. Open a pull request into `quarrel-stage-6`. Do not push to `main`, `stage5-ui` or older stage branches.
+3. Open a pull request into `quarrel-stage-6`. Do not push to `main` or older stage branches; `main` changes only through pull requests reviewed by Lane A.
 4. Merge small and often; a lane branch older than a day is a conflict risk.
