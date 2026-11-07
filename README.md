@@ -4,6 +4,10 @@ Four original pixel-art settings for private two-player rooms, built with Next.j
 
 The original Stage 1 artwork and local interaction preview are preserved at `/preview`. This standalone repository, [diamster/falls-hacks-2026-quarrel](https://github.com/diamster/falls-hacks-2026-quarrel), is the home for all quarrel.io work. Stage 4 extends the existing application on `quarrel-stage-4`; earlier stage branches retain their history.
 
+## Public multiplayer on Vercel
+
+See [Vercel deployment and verification](docs/vercel-deployment.md). Vercel hosts the website and server routes; the existing Supabase Cloud project continues to store rooms and deliver live updates. Both players must open the same public deployment URL. Invitations created there automatically use that URL instead of `localhost`.
+
 ## Run locally with Supabase Cloud
 
 The app now targets the quarrel Cloud project `exjdvtqsalnkghyohyuh`. The Next.js website still runs on your computer; this does not publish the website. Requirements: Node.js 22.12+, npm, internet access, and this project's **publishable** API key. Docker is only needed for the optional local database/CI workflow below.
