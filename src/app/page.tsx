@@ -1,5 +1,2 @@
-import { QuarrelApp } from "@/components/quarrel-app";
-
-export default function Page() {
-  return <QuarrelApp />;
-}
+import { MultiplayerApp } from "@/components/multiplayer-app";
+export default function Page() { return <MultiplayerApp />; }

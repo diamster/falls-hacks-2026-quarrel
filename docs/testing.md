@@ -1,3 +1,5 @@
+> Historical Stage 1 record. The local-only preview now lives at `/preview`. See [Stage 2 verification](testing-stage-2.md) for the current multiplayer checks.
+
 # Stage 1 testing checklist
 
 Test from `prototypes/quarrel-io` using Node.js 22.12 or newer. No environment secrets are needed.

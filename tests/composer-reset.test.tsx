@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import Page from "@/app/page";
+import Page from "@/app/preview/page";
 
 function setup() {
   const user = userEvent.setup();
