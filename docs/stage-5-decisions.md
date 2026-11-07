@@ -23,6 +23,18 @@ Read [the original handoff](stage-5-handoff.md) first for context, then this doc
 | **D11 — quotas** | Each player has at most **12 official presentations per subtopic**. The count resets for the next subtopic. Reaching the cap neither extends nor ends their remaining writing clock; the subtopic still ends only when both clocks reach zero. |
 | **D12 — development and failures** | Preserve a clearly labelled deterministic **demo/fallback** path for plans, presentations, summaries and verdicts when Gemini is absent or unavailable. The same structured contracts and authorization apply. A fallback verdict does not claim a live AI evaluation; the implementation preserves the record and returns split/inconclusive. |
 
+### D1 amendment — mascot lawyers (2026-11-07)
+
+The user approved replacing each theme's Lawyer A and Lawyer B artwork with two team mascots: a boxy two-tone robot with a pie (Lawyer A) and a raccoon in a hoodie (Lawyer B). Each theme has its own mascot asset IDs, with small theme accessories, and a greyscale Detective variant. This amendment changes only the artwork and accessible descriptions:
+
+- **Names and personalities:** lawyer display names, personalities and dialogue styles are unchanged, so the AI prompts are unchanged.
+- **Other artwork:** players, judges and juries keep their original art.
+- **Existing art kept:** the original lawyer drawings remain in the codebase, alongside new pixel remasters of them.
+- **Viewer choice:** each viewer can switch their own lawyer art in Settings. The choice is saved in that browser only.
+- **Where the code lives:** the A/B mascot assignment is `mascotLawyers` in `src/themes/art/pixel/roster.ts`. See `docs/pixel-art-lab/README.md`.
+
+The mascots are original pixel drawings inspired by the team's reference sketches. Confirm the rights to the mascot designs before any public deployment.
+
 ## Updated flow and implementation details
 
 1. The host creates a private room and enters the main topic and per-player total duration. Each player writes and confirms **only their own position**, at most 600 characters. Both positions are visible before starting. A player cannot supply another identity/slot to edit the other position.

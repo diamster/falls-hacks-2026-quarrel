@@ -1,4 +1,6 @@
 import { neutralityPolicy, type ThemeConfig } from "./types";
+import { mascots } from "./art/pixel/mascots";
+import { mascotAssetId, mascotLawyers } from "./art/pixel/roster";
 
 export const superhero: ThemeConfig = {
   id: "superhero", displayName: "Superhero", description: "Take your case above the city. Moonlit rooftops, bright signals and sharp thinking.",
@@ -10,8 +12,8 @@ export const superhero: ThemeConfig = {
     "superhero-inventor": { id: "superhero-inventor", displayName: "Kit", roleLabel: "Inventor", assetId: "superhero-inventor", description: "Kit, an original violet-clad inventor with goggles" },
   } },
   lawyers: {
-    A: { id: "superhero-aster", displayName: "Aster", assetId: "superhero-lawyer-a", description: "Aster, an original city advocate with gold spectacles, a teal cape and a case tablet", personality: "Witty, focused and resourceful. A confident sidekick who puts their player's reasoning in order.", dialogueStyle: "Crisp, heroic sentences with light investigation language; no invented deductions or facts." },
-    B: { id: "superhero-vesper", displayName: "Vesper", assetId: "superhero-lawyer-b", description: "Vesper, an original rooftop advocate in violet with a cyan visor and a gold dossier", personality: "Inventive, composed and sharp. An encouraging advocate who makes the player's existing point easy to follow.", dialogueStyle: "Concise comic-book cadence and occasional dry wit, preserving the substance and limits of the submitted argument." },
+    A: { id: "superhero-aster", displayName: "Aster", assetId: mascotAssetId(mascotLawyers.A, "superhero"), description: `Aster, drawn as ${mascots[mascotLawyers.A].description}`, personality: "Witty, focused and resourceful. A confident sidekick who puts their player's reasoning in order.", dialogueStyle: "Crisp, heroic sentences with light investigation language; no invented deductions or facts." },
+    B: { id: "superhero-vesper", displayName: "Vesper", assetId: mascotAssetId(mascotLawyers.B, "superhero"), description: `Vesper, drawn as ${mascots[mascotLawyers.B].description}`, personality: "Inventive, composed and sharp. An encouraging advocate who makes the player's existing point easy to follow.", dialogueStyle: "Concise comic-book cadence and occasional dry wit, preserving the substance and limits of the submitted argument." },
   },
   jury: { id: "superhero-signal-jury", displayName: "The Signal Council", assetId: "superhero-jury", description: "Three original city jurors in teal, gold and violet seated at an illuminated rooftop desk", personality: "Analytical, steady and civic-minded. Every side receives the same scrutiny.", dialogueStyle: "Clear investigative reasoning with understated heroic language; presentation never determines the outcome.", neutralityPolicy },
   judge: { id: "superhero-rook", displayName: "Rook", assetId: "superhero-rook", description: "Rook, an original heroic sidekick in teal and gold", personality: "Witty, confident, heroic and analytical. A resourceful sidekick who gives both sides a fair hearing.", dialogueStyle: "Crisp comic-book phrasing with light detective and crime-fighting language. No copied character catchphrases.", neutralityPolicy,
