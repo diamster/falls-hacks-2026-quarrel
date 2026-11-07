@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent, type MouseEvent } from "react";
 import { DebateArena } from "./debate-arena";
 import { ThemeSelector } from "./theme-selector";
 import { PixelButton, PixelIcon, SectionHeading } from "./ui";
@@ -82,11 +82,36 @@ export function RoomLobby({ room, pending, offline, live, onReady, theme = getTh
 
 export function MultiplayerApp() {
   const session = useRoomClient();
+  const [view, setView] = useState<"auto" | "start" | "room">("auto");
   const [initialCode, setInitialCode] = useState("");
   const [paused, setPaused] = useState(false);
   const [preview, setPreview] = useState<{ themeId: string; sampleId: string } | null>(null);
   useEffect(() => { setInitialCode(new URLSearchParams(window.location.search).get("room")?.toUpperCase().slice(0, 6) ?? ""); }, []);
-  const room = session.room;
+  useEffect(() => {
+    const readView = () => {
+      const params = new URLSearchParams(window.location.search);
+      return params.get("start") === "1" || (!params.has("room") && session.room?.debate?.phase === "verdict") ? "start" : "room";
+    };
+    if (!session.loading && view === "auto") setView(readView());
+    const onPopState = () => setView(readView());
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [session.loading, session.room?.debate?.phase, view]);
+  useEffect(() => {
+    // Explicit room URLs preserve refresh recovery, including completed records.
+    if (view === "room" && session.room) window.history.replaceState(window.history.state, "", `/?room=${encodeURIComponent(session.room.code)}`);
+  }, [view, session.room?.code]);
+  function navigate(next: "start" | "room") {
+    window.history.pushState(null, "", next === "start" ? "/?start=1" : `/?room=${encodeURIComponent(session.room!.code)}`);
+    setView(next);
+    document.getElementById("courtroom-content")?.focus();
+  }
+  function backToStart(event: MouseEvent<HTMLAnchorElement>) {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    navigate("start");
+  }
+  const room = view === "room" ? session.room : null;
   const theme = getTheme(room?.themeId);
   const playerA = room?.players.find(player => player.slot === "A");
   const playerB = room?.players.find(player => player.slot === "B");
@@ -102,9 +127,9 @@ export function MultiplayerApp() {
   return <div className={`theme-shell${started ? " stage-three-active" : ""}`} data-theme={theme.id} style={themeStyles(theme)}>
     <a className="skip-link" href="#courtroom-content">Skip to courtroom</a>
     <header className="site-header"><div className="header-inner">
-      <a className="brand" href="/" aria-label="quarrel.io home"><span className="brand-mark"><PixelIcon name="chat"/></span><span>quarrel<span className="brand-dot">.</span>io</span></a>
+      <a className="brand" href="/?start=1" onClick={backToStart} aria-label="quarrel.io home"><span className="brand-mark"><PixelIcon name="chat"/></span><span>quarrel<span className="brand-dot">.</span>io</span></a>
       <div className="header-divider"/><span className="brand-caption">BIG OPINIONS.<br/>FAIR HEARINGS.</span>
-      <nav aria-label="Main navigation"><a href="#courtroom-content" className="nav-current">The courtroom</a><a href="/preview">Art preview ↗</a></nav>
+      <nav aria-label="Main navigation">{room ? <a href="/?start=1" onClick={backToStart}>Back to start</a> : <a href="#courtroom-content" className="nav-current">The courtroom</a>}<a href="/preview">Art preview ↗</a></nav>
       <div className="stage-badge"><span className="status-dot"/>STAGE 03 <span>/ THREE ROUNDS</span></div>
     </div></header>
     <main id="courtroom-content" className="app-shell" tabIndex={-1}>
@@ -125,9 +150,19 @@ export function MultiplayerApp() {
             </select><span>Sample lines in this tab. No AI is connected.</span></label>
           </section>}
         </div>
-        {session.loading ? <section className="room-panel pixel-panel room-loading" aria-live="polite"><PixelIcon name="leaf"/><p>Checking for your seat…</p></section>
+        {session.loading || view === "auto" ? <section className="room-panel pixel-panel room-loading" aria-live="polite"><PixelIcon name="leaf"/><p>Checking for your seat…</p></section>
           : room ? <RoomLobby theme={theme} room={room} pending={session.pending} offline={session.offline} live={session.live} onReady={ready => { void session.setReady(ready); }}/>
-          : <RoomEntry theme={theme} pending={session.pending} initialCode={initialCode} onCreate={name => { void session.create(name); }} onJoin={(code, name) => { void session.join(code, name); }}/>}
+          : session.room ? <section className="room-panel pixel-panel" aria-labelledby="saved-room-title">
+            <SectionHeading eyebrow="WELCOME BACK"><span id="saved-room-title">Your room is saved</span></SectionHeading>
+            <div className="room-panel-body saved-room-body">
+              <p>This is the start screen. Your previous room is still available whenever you want to return.</p>
+              <div className="room-code-label"><span className="eyebrow">SAVED ROOM</span><strong>{session.room.code}</strong></div>
+              <p>{session.room.debate?.phase === "verdict" ? "The debate is complete. Resume to view its record." : "Returning to start does not pause a live debate."}</p>
+              <PixelButton tone="green" onClick={() => navigate("room")}>Resume room<PixelIcon name="arrow"/></PixelButton>
+              <p className="room-fine-print">For a fresh room, use a separate browser or private window. This browser keeps your saved seat.</p>
+            </div>
+          </section>
+          : <RoomEntry theme={theme} pending={session.pending} initialCode={initialCode} onCreate={name => { void session.create(name).then(success => { if (success) setView("room"); }); }} onJoin={(code, name) => { void session.join(code, name).then(success => { if (success) setView("room"); }); }}/>}
       </div>
       {started && room && debate && <DebateHistory debate={debate} players={room.players} you={room.you}/>}
       <section className={`room-confirmation pixel-panel ${confirmed ? "is-confirmed" : ""}`} aria-live="polite" aria-atomic="true">

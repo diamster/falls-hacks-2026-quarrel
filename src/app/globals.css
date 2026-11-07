@@ -208,6 +208,8 @@ button {color:inherit;}
 .room-panel .section-heading h2 {font-size:24px;}
 .room-panel .section-heading .eyebrow {font-size:8px;margin-bottom:5px;}
 .room-panel-body {padding:19px;}
+.saved-room-body {display:flex;flex-direction:column;gap:18px;}
+.saved-room-body>p:not(.room-fine-print) {font-size:14px;line-height:1.6;}
 .room-intro {font-size:12px;margin-bottom:18px;color:#5c7053;}
 .room-mode-switch {display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:20px;}
 .room-mode-switch button {font-size:11px;font-weight:750;min-height:40px;border:1px solid #bdc9ac;background:#edf0de;}

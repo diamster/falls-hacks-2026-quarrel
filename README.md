@@ -42,6 +42,12 @@ npm run start
 
 Stop any server using the same port first. Stop/restart a production server around a rebuild to avoid serving mismatched assets. `npm run typecheck` checks TypeScript independently. The supported Webpack build remains the default from Stage 1.
 
+## Start screen and saved rooms
+
+Use **Back to start** (or the quarrel.io logo) to return to the welcome screen. A saved seat appears behind **Resume room**; its topic, theme and history are preserved. A completed room no longer opens automatically when visiting `/` without a room link. Explicit `/?room=CODE` URLs still restore the saved room after refresh; `/?start=1` keeps the welcome screen open. Returning to start does not pause a live debate.
+
+The existing one-room-per-session restriction remains. Creating or joining a fresh room while keeping the saved seat requires another browser or private window. New visitors without a saved session still see the Create/Join form.
+
 ## Play a debate
 
 1. Player A chooses a theme and proposes a topic plus two distinct opposing positions. Submitting the proposal confirms A’s position.

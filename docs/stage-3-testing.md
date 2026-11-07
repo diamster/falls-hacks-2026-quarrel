@@ -91,3 +91,11 @@ QUARREL_TEST_URL=http://127.0.0.1:3000 npm run test:api
 The service integration suites each create three anonymous users and one room and retain those fixtures. SQL-only synthetic fixtures roll back. Room expiry is a 24-hour access rule, not physical row/user cleanup. Repeated runs consume Cloud Auth quota; do not weaken rate protections to rerun them. The existing isolated GitHub Actions workflow now also calls `test:debate`; its local CI database does not reconfigure the Cloud-connected app.
 
 The displayed countdown estimates network transit and can differ slightly between clients; PostgreSQL alone accepts submissions. Deadlines keep running through disconnection. If all clients are offline, the next authorized request reconciles elapsed turns using the original deadline chain; there is no always-running scheduler. Unsent drafts are local and do not survive page refresh. Rematches, leaving rooms, public website hosting, real AI questions/evaluation and winner selection remain outside Stage 3.
+
+## Follow-up: return to the start screen
+
+The completed QA room was automatically restored at `/`, which made the test verdict appear to be the app’s default. Added explicit Back to start / Resume room navigation and a saved-room card. Completed rooms now open on the welcome view at plain `/`; explicit room URLs retain refresh recovery. Navigation stays separate from live snapshots, so heartbeats do not force the room back open. Existing Cloud sessions and debate history are preserved; no API, database, migration or authorization changes were made.
+
+Verification: `npm run check` passed **239 tests**, unchanged coverage gates and the production build. Four new regression cases cover completed-room entry, resume/home navigation through snapshot updates, explicit-room refresh and an active debate hidden behind the start view. Browser checks recovered all six saved entries, refreshed the room, returned home, and confirmed the home view survives refresh. The 390px layout had no horizontal overflow and exposed the Back to start link. No browser warnings/errors. The Cloud/database suites recorded above were not repeated for this UI-only correction.
+
+![Welcome screen with saved-room navigation](screenshots/stage3-start-screen.png)
