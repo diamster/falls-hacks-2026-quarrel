@@ -6,7 +6,7 @@ Stage 1 includes the pixel-art courtroom, reusable UI/character components, loca
 
 Do not add multiplayer, Supabase, authentication, LLM/API calls, real judging/debate rules, voice or video, or begin Stage 2 without a new explicit user instruction. No runtime external credentials or services are required. Original artwork stays local. Preserve keyboard accessibility, reduced-motion support and responsive layout.
 
-Before handing off, run the production build and inspect the desktop/mobile UI and local preview interactions in a browser. Record actual results and any verification limits in docs/testing.md.
+Before handing off, run `npm run check` (automated component tests with coverage, then the production build) and inspect the desktop/mobile UI and local preview interactions in a browser. Keep the Stage 1 behavior tests passing; fix causes instead of lowering coverage thresholds or weakening assertions. Record actual results and any verification limits in docs/testing.md. jsdom tests do not establish rendered layout, native dialog focus behavior or real animation timing.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

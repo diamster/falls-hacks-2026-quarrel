@@ -2,6 +2,39 @@
 
 Test from `prototypes/quarrel-io` using Node.js 22.12 or newer. No environment secrets are needed.
 
+## Automated component tests
+
+```sh
+npm test
+npm run test:coverage
+npm run check
+```
+
+- `npm test` runs the suite once; `npm run test:watch` reruns it while editing.
+- `npm run test:coverage` produces text, JSON summary and HTML coverage reports in `coverage/`. The component/data gate requires 90% statements, functions and lines, and 85% branches.
+- `npm run check` runs the coverage gate and then the production build, including TypeScript and static route generation.
+
+The tests use Vitest, React Testing Library and user-event in jsdom. They render the real application and child components rather than replacing them with mocks. Character cases independently check all eight supported states for each animal; other cases exercise dialogue samples and wraparound, state retention, pause flags, empty/whitespace and repeated submissions, trimming, the 500-character limit, literal markup rendering, objection/reset behavior, fresh mounts, guide opening/closing, and the absence of fetch/XHR requests and Web Storage writes in the exercised preview flow. Unexpected component console errors and warnings fail a test.
+
+The dialog setup supplies only missing `showModal`/`close` DOM behavior. It does **not** emulate focus trapping, Escape, browser top-layer rendering or focus restoration. jsdom also does not lay out the page or run CSS animations. Assertions on state/animation attributes establish the renderer's selected state, not visible motion or mobile fit. The browser checklist below remains required. Network assertions cover the APIs actually spied on, not every possible browser transport; source review still checks the Stage 1 boundary.
+
+### Automated regression run — November 7, 2026
+
+`npm run check` passed: **21 tests across 2 files**, followed by production compilation, TypeScript and static route generation. No production-code fix was needed. A TypeScript mismatch in the new test helper was corrected before the final successful run.
+
+| Coverage scope: components and preview data | Result |
+| --- | --- |
+| Statements | 100% (85/85) |
+| Branches | 98.11% (52/53) |
+| Functions | 100% (44/44) |
+| Lines | 100% (57/57) |
+
+These figures measure JavaScript execution, not visual correctness. The optional section-heading eyebrow branch is unexercised; CSS, font loading and native browser behavior are outside this coverage scope.
+
+The unchanged production interface was also rechecked at 1280 × 720 and 390 × 844: no horizontal overflow, all characters visible, paused dialogue remains readable, a local mobile submission succeeds, reset restores the samples, and the native guide closes with Escape and returns focus to its opener. No browser console errors were reported. Saved checks: [desktop](screenshots/test-desktop.png), [mobile submission](screenshots/test-mobile.png). The original, broader visual acceptance record remains below.
+
+`.github/workflows/quarrel-stage-1-checks.yml` runs `npm ci` and `npm run check` on pushes/PRs affecting this project. It has read-only repository permissions and does not deploy anything.
+
 ## Build and startup
 
 1. Run `npm ci`, then `npm run build`. Confirm compilation and TypeScript checks succeed.

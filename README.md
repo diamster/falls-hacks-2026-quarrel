@@ -27,6 +27,20 @@ Stop the development server before starting production on the same port. `npm ru
 
 The production build script uses Next.js’s supported Webpack builder. Turbopack’s production worker encountered a local permission error in the development environment; Webpack built successfully. This changes the build tooling, not the Stage 1 feature scope.
 
+## Run the tests
+
+From this project directory:
+
+```sh
+npm test
+npm run test:coverage
+npm run check
+```
+
+`npm test` runs the Vitest/React Testing Library suite once. `npm run test:watch` keeps it running while editing. `npm run test:coverage` also writes an HTML report to `coverage/index.html` and checks minimum coverage for the components and local preview data: 90% statements, functions and lines, and 85% branches. `npm run check` runs that coverage gate followed by the production build.
+
+The suite renders the actual page/components in jsdom and exercises character states, dialogue, pause controls, local arguments, input boundaries, reset and guide open/close state. It also checks literal rendering of submitted markup and that the exercised flow makes no fetch/XHR requests or Web Storage writes. Browser layout, visible CSS animation and native dialog keyboard behavior require the separate [browser checklist and verification record](docs/testing.md); coverage is not evidence that those browser features work.
+
 ## Explore the preview
 
 - **Director’s booth:** choose Leo the lion, Zuri the zebra or Judge Moki the lemur, then select a character state. Each character retains its own selection.
@@ -54,9 +68,12 @@ The room code, topic, round and turn timer are demonstration placeholders. The t
 | `src/components/ui.tsx` | Shared pixel buttons, icons and section headings |
 | `src/components/about-dialog.tsx` | Keyboard-accessible local-preview guide |
 | `src/lib/preview.ts` | Typed character/state definitions and sample content |
+| `tests/` and `vitest.config.mts` | Component interaction tests, minimal DOM setup and coverage gate |
 | `docs/testing.md` | Stage 1 verification checklist and recorded results |
 
 All character states share the `CharacterState` type so future stages can reuse the interface without inventing alternate state names. The current app only changes local React state. No later-stage services or rules are included.
+
+GitHub Actions runs the test/coverage gate and production build for changes to this project. The workflow is `.github/workflows/quarrel-stage-1-checks.yml`; it does not deploy or modify the campus project.
 
 ## Artwork and accessibility
 
