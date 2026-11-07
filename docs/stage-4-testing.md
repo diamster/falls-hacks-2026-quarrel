@@ -120,6 +120,19 @@ Focused local leave/API/component checks passed. Full local runs encountered int
 
 The first clean-runner pass (`42409773090`) passed **377 application tests**, coverage, the production build, **255 database assertions**, all API/room/theme/debate checks, then exposed a race in the existing judge integration test: a fast demo answer completed before its asynchronous Realtime notification arrived. The test now explicitly waits for that actual notification with a bounded deadline and retains the delivery assertion. It does not simulate the event, retry judge generation or relax room/debate rules. The leave HTTP step was skipped after that initial judge-test failure; the final run below verifies it independently.
 
+**Final verification:** [GitHub Actions run 42410305854](https://github.com/diamster/falls-hacks-2026-quarrel/actions/runs/42410305854) passed every step for commit `e50d9e887eaaadf55caf53c2e7c81c16b51b9c2c`:
+
+| Check | Result |
+| --- | --- |
+| Application tests and build | 377 passed; 3 opt-in live-provider tests skipped; production build and TypeScript passed |
+| Coverage | 98.95% statements, 95.58% branches, 98.63% functions, 100% lines; thresholds unchanged |
+| Database pgTAP | 255 assertions passed across five files, including all 36 new leave assertions |
+| API, rooms/themes and debate | Complete API suite, all 15 room/theme checks and all 8 debate checks passed |
+| Shared judge | All 7 checks passed, using four deterministic demo responses in isolated CI |
+| Leave/new-room flow | All 6 HTTP groups passed; no Gemini calls |
+
+The final report-only commit changes no application, test, migration or workflow code. The local app continues to use Supabase Cloud; only the GitHub runner uses a disposable isolated database. Browser/Cloud results above and this clean-runner pass are distinct from the resource-sensitive local full-suite attempts.
+
 Remote HTTP checks retain synthetic rows until a separate cleanup; expiry restricts access, not physical storage. The three leave fixtures were `df59e344-58db-40e0-85b2-0583451924b4`, `c63f84a6-a401-4632-a286-5f319989adbb`, and `75433475-bd1a-42c6-aa21-c60ef9f19b0c`. The new regression judge fixture was `dc52f61a-70f0-4dae-9af2-288f5eedba52`.
 
 ```sh
