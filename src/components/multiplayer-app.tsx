@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type FormEvent, type MouseEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent, type MouseEvent, type ReactNode } from "react";
 import { DebateArena } from "./debate-arena";
 import { JudgeComposer, JudgeConversation, PreparingJudgeQuestions, useJudgePresentation } from "./judge-panel";
 import { ThemeSelector } from "./theme-selector";
@@ -87,8 +87,10 @@ export function RoomLobby({ room, pending, offline, live, onReady, onLeave, them
     <SectionHeading eyebrow="PRIVATE ROOM"><span id="lobby-title">{theme.ui.lobbyTitle}</span></SectionHeading>
     <div className="room-panel-body">
       <div className="room-code-label"><span className="eyebrow">INVITE WITH CODE</span><strong>{room.code}</strong></div>
-      <label className="room-field" htmlFor="share-url">Shareable invitation<input id="share-url" readOnly value={shareUrl} onFocus={event => event.target.select()}/></label>
-      <PixelButton tone="cream" className="room-copy" onClick={() => { void copy(); }}>Copy invite link</PixelButton>
+      <div className="room-invite-row">
+        <label className="room-field" htmlFor="share-url">Shareable invitation<input id="share-url" readOnly value={shareUrl} onFocus={event => event.target.select()}/></label>
+        <PixelButton tone="cream" className="room-copy" onClick={() => { void copy(); }}>Copy invite link</PixelButton>
+      </div>
       <p className="room-copy-status" role="status">{copied}</p>
       <ul className="room-player-list" aria-label="Room players">
         {getGameMode(room.mode).slots.map(slot => {
@@ -164,55 +166,89 @@ export function MultiplayerApp() {
   const roundNumber = debate?.phase === "opening" ? 1 : debate?.phase === "rebuttal" ? 2 : 3;
   const judgePresentation = useJudgePresentation(room, dialogue, dialogueKey, session.judgePending);
   const preparingQuestions = Boolean(room?.judge?.preparingQuestions);
-  return <div className={`theme-shell${started ? " stage-three-active" : ""}`} data-theme={theme.id} style={themeStyles(theme)}>
+  const pauseButton = <PixelButton tone="cream" className="pause-button" aria-pressed={paused} onClick={() => setPaused(value => !value)}><PixelIcon name={paused ? "play" : "pause"}/>{paused ? "Resume animation" : "Pause animation"}</PixelButton>;
+  const confirmation = <section className={`room-confirmation ${started ? "pixel-panel" : "room-confirmation--inline"} ${confirmed ? "is-confirmed" : ""}`} aria-live="polite" aria-atomic="true">
+    <PixelIcon name={confirmed ? "spark" : "leaf"}/><div><h2>{started ? "Different views. Equal time." : confirmed ? "Ready to start — both players confirmed!" : "A fair hearing. A shared starting line."}</h2><p>{started ? "Pausing the artwork does not pause the shared turn clock." : confirmed ? "Approve the same topic and positions. Player A chooses when to start." : "Create or join a room, agree on a topic and positions, then both players choose ready."}</p></div>
+    {started && pauseButton}
+  </section>;
+  const header = <header className="site-header"><div className="header-inner">
+    <a className="brand" href="/?start=1" onClick={backToStart} aria-label="quarrel.io home"><span className="brand-mark"><PixelIcon name="chat"/></span><span>quarrel<span className="brand-dot">.</span>io</span></a>
+    <div className="header-divider"/><span className="brand-caption">BIG OPINIONS.<br/>FAIR HEARINGS.</span>
+    <nav aria-label="Main navigation">{room ? <a href="/?start=1" onClick={backToStart}>Back to start</a> : <a href="#courtroom-content" className="nav-current">The courtroom</a>}<a href="/preview">Art preview ↗</a></nav>
+    <div className="stage-badge"><span className="status-dot"/>STAGE 04 <span>/ YOUR AI SIDEKICK</span></div>
+  </div></header>;
+  const error = session.error && <div className="room-error" role="alert"><p>{session.error}</p>{session.offline && <button onClick={() => { void session.refresh(); }}>Try reconnecting</button>}</div>;
+  const arena = <DebateArena theme={theme} players={{ A: { name: playerA?.name ?? "Player A", characterId: playerA?.selectedCharacterId }, B: { name: playerB?.name ?? "Player B", characterId: playerB?.selectedCharacterId } }} dialogue={judgePresentation.dialogue} dialogueKey={judgePresentation.dialogueKey} judgeState={judgePresentation.state} judgeLabel={judgePresentation.label} paused={paused} roomCode={room?.code} turn={started && debate ? { label: complete ? "ALL ROUNDS COMPLETE" : preparingQuestions ? "PREPARING QUESTIONS" : `ROUND ${roundNumber} · PLAYER ${debate.activeSlot}`, time: complete ? "DONE" : preparingQuestions ? "…" : formatTurnTime(session.remainingSeconds), activeSlot: debate.activeSlot, complete } : undefined}/>;
+  const roomPanel = session.loading || view === "auto" ? <section className="room-panel pixel-panel room-loading" aria-live="polite"><PixelIcon name="leaf"/><p>Checking for your seat…</p></section>
+    : room ? <RoomLobby key={room.id} theme={theme} room={room} pending={session.pending} offline={session.offline} live={session.live} onReady={ready => { void session.setReady(ready); }}/>
+    : session.room ? <section className="room-panel pixel-panel" aria-labelledby="saved-room-title">
+      <SectionHeading eyebrow="WELCOME BACK"><span id="saved-room-title">Your room is saved</span></SectionHeading>
+      <div className="room-panel-body saved-room-body">
+        <p>This is the start screen. Your previous room is still available whenever you want to return.</p>
+        <div className="room-code-label"><span className="eyebrow">SAVED ROOM</span><strong>{session.room.code}</strong></div>
+        <p>{session.room.debate?.phase === "verdict" ? "The debate is complete. Resume to view its record." : "Returning to start does not pause a live debate."}</p>
+        <PixelButton tone="green" onClick={() => navigate("room")}>Resume room<PixelIcon name="arrow"/></PixelButton>
+        <LeaveRoomControl key={session.room.id} pending={session.pending} offline={session.offline} label="Create or join another room" onLeave={() => leaveRoom(session.room!.id)}/>
+      </div>
+    </section>
+    : <RoomEntry theme={theme} pending={session.pending} initialCode={initialCode} onCreate={name => { void session.create(name).then(success => { if (success) setView("room"); }); }} onJoin={(code, name) => { void session.join(code, name).then(success => { if (success) setView("room"); }); }}/>;
+  // Leaving is rare and destructive, so it sits last, after the room's next steps.
+  const leave = room && !session.loading && view !== "auto" && <LeaveRoomControl key={`leave-${room.id}`} pending={session.pending} offline={session.offline} onLeave={() => leaveRoom(room.id)}/>;
+  const footer = (controls?: ReactNode) => <footer className="site-footer"><span><PixelIcon name="leaf"/> {theme.ui.tagline}</span>{controls}<span>Made for Digital Sidekick <span className="footer-star">✦</span> Stage 4 · Your debate sidekick</span></footer>;
+
+  if (started) return <div className="theme-shell stage-three-active" data-theme={theme.id} style={themeStyles(theme)}>
     <a className="skip-link" href="#courtroom-content">Skip to courtroom</a>
-    <header className="site-header"><div className="header-inner">
-      <a className="brand" href="/?start=1" onClick={backToStart} aria-label="quarrel.io home"><span className="brand-mark"><PixelIcon name="chat"/></span><span>quarrel<span className="brand-dot">.</span>io</span></a>
-      <div className="header-divider"/><span className="brand-caption">BIG OPINIONS.<br/>FAIR HEARINGS.</span>
-      <nav aria-label="Main navigation">{room ? <a href="/?start=1" onClick={backToStart}>Back to start</a> : <a href="#courtroom-content" className="nav-current">The courtroom</a>}<a href="/preview">Art preview ↗</a></nav>
-      <div className="stage-badge"><span className="status-dot"/>STAGE 04 <span>/ YOUR AI SIDEKICK</span></div>
-    </div></header>
+    {header}
     <main id="courtroom-content" className="app-shell" tabIndex={-1}>
-      <section className="topic-bar" aria-label={started ? "Debate topic" : "Room lobby"}><div className="topic-icon"><PixelIcon name="gavel"/></div><div className="topic-copy"><p className="eyebrow">{theme.ui.benchCaption} <span>· {started ? "THE AGREED QUESTION" : "TWO-PLAYER LOBBY"}</span></p><h1>{started ? debate?.topic : "Every great debate starts with hello."}</h1></div><div className="round-placeholder"><span className="eyebrow">{complete ? "COMPLETE" : started ? `ROUND ${roundNumber} OF 3` : "WAITING ROOM"}</span><span>{complete ? "The debate record is ready." : started && debate?.phase !== "setup" ? roundLabels[debate!.phase as keyof typeof roundLabels] : "Find your friend. Take your seat."}</span></div></section>
-      {session.error && <div className="room-error" role="alert"><p>{session.error}</p>{session.offline && <button onClick={() => { void session.refresh(); }}>Try reconnecting</button>}</div>}
-      {started ? <div className="debate-theme-lock"><PixelIcon name="spark"/><strong>{theme.displayName} · {theme.judge.displayName}</strong><span>Theme locked for this debate</span></div> : <ThemeSelector selectedId={theme.id} hasRoom={Boolean(room)} canEdit={room?.you === "A" && !session.offline} pending={session.pending} locked={Boolean(room?.themeLocked)} onSelect={id => { void session.setTheme(id); }}/>}
-      {room && debate?.phase === "setup" && <DebateSetup room={room} debate={debate} pending={session.pending} offline={session.offline} onPropose={session.proposeTopic} onApprove={session.approveTopic} onRequestChanges={session.requestChanges} onStart={session.startDebate}/>}
-      {started && debate && <><DebateProgress phase={debate.phase}/><PositionSummary debate={debate}/></>}
+      <section className="topic-bar" aria-label="Debate topic"><div className="topic-icon"><PixelIcon name="gavel"/></div><div className="topic-copy"><p className="eyebrow">{theme.ui.benchCaption} <span>· THE AGREED QUESTION</span></p><h1>{debate?.topic}</h1></div><div className="round-placeholder"><span className="eyebrow">{complete ? "COMPLETE" : `ROUND ${roundNumber} OF 3`}</span><span>{complete ? "The debate record is ready." : roundLabels[debate!.phase as keyof typeof roundLabels]}</span></div></section>
+      {error}
+      <div className="debate-theme-lock"><PixelIcon name="spark"/><strong>{theme.displayName} · {theme.judge.displayName}</strong><span>Theme locked for this debate</span></div>
+      {debate && <><DebateProgress phase={debate.phase}/><PositionSummary debate={debate}/></>}
       {complete && debate && <DebateComplete debate={debate} interactiveJudge={room?.judge?.enabled}/>}
       <div className="court-layout room-court-layout">
         <div className="arena-column">
-          <DebateArena theme={theme} players={{ A: { name: playerA?.name ?? "Player A", characterId: playerA?.selectedCharacterId }, B: { name: playerB?.name ?? "Player B", characterId: playerB?.selectedCharacterId } }} dialogue={judgePresentation.dialogue} dialogueKey={judgePresentation.dialogueKey} judgeState={judgePresentation.state} judgeLabel={judgePresentation.label} paused={paused} roomCode={room?.code} turn={started && debate ? { label: complete ? "ALL ROUNDS COMPLETE" : preparingQuestions ? "PREPARING QUESTIONS" : `ROUND ${roundNumber} · PLAYER ${debate.activeSlot}`, time: complete ? "DONE" : preparingQuestions ? "…" : formatTurnTime(session.remainingSeconds), activeSlot: debate.activeSlot, complete } : undefined}/>
+          {arena}
           {preparingQuestions && <PreparingJudgeQuestions/>}
-          {started && !complete && !preparingQuestions && room && debate && <DebateTurnPanel key={`${room.id}-${debate.turnIndex}`} room={room} debate={debate} remainingSeconds={session.remainingSeconds} pending={session.pending && !session.judgePending} blocked={session.pending && session.judgePending} offline={session.offline} onSubmit={session.submitArgument}/>}
-          {started && !complete && room?.judge?.enabled && debate && <JudgeComposer key={`judge-${room.id}-${debate.turnIndex}`} room={room} theme={theme} pending={session.judgePending} blocked={session.pending && !session.judgePending} offline={session.offline} remainingSeconds={session.remainingSeconds} onAsk={session.askJudge}/>}
-          {!started && <section className="judge-preview pixel-panel" aria-label="Judge personality preview">
-            <div><p className="eyebrow">MEET {theme.judge.displayName.toUpperCase()}</p><p>{theme.judge.personality}</p></div>
-            <label htmlFor="theme-judge-dialogue">Judge dialogue preview<select id="theme-judge-dialogue" aria-label="Judge dialogue preview" value={sample?.id ?? "lobby"} onChange={event => setPreview({ themeId: theme.id, sampleId: event.target.value })}>
-              <option value="lobby">Lobby greeting</option>{theme.judge.samples.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
-            </select><span>Sample lines in this tab. Live judge conversations begin with the debate.</span></label>
-          </section>}
+          {!complete && !preparingQuestions && room && debate && <DebateTurnPanel key={`${room.id}-${debate.turnIndex}`} room={room} debate={debate} remainingSeconds={session.remainingSeconds} pending={session.pending && !session.judgePending} blocked={session.pending && session.judgePending} offline={session.offline} onSubmit={session.submitArgument}/>}
+          {!complete && room?.judge?.enabled && debate && <JudgeComposer key={`judge-${room.id}-${debate.turnIndex}`} room={room} theme={theme} pending={session.judgePending} blocked={session.pending && !session.judgePending} offline={session.offline} remainingSeconds={session.remainingSeconds} onAsk={session.askJudge}/>}
         </div>
-        {session.loading || view === "auto" ? <section className="room-panel pixel-panel room-loading" aria-live="polite"><PixelIcon name="leaf"/><p>Checking for your seat…</p></section>
-          : room ? <RoomLobby key={room.id} theme={theme} room={room} pending={session.pending} offline={session.offline} live={session.live} onReady={ready => { void session.setReady(ready); }} onLeave={() => leaveRoom(room.id)}/>
-          : session.room ? <section className="room-panel pixel-panel" aria-labelledby="saved-room-title">
-            <SectionHeading eyebrow="WELCOME BACK"><span id="saved-room-title">Your room is saved</span></SectionHeading>
-            <div className="room-panel-body saved-room-body">
-              <p>This is the start screen. Your previous room is still available whenever you want to return.</p>
-              <div className="room-code-label"><span className="eyebrow">SAVED ROOM</span><strong>{session.room.code}</strong></div>
-              <p>{session.room.debate?.phase === "verdict" ? "The debate is complete. Resume to view its record." : "Returning to start does not pause a live debate."}</p>
-              <PixelButton tone="green" onClick={() => navigate("room")}>Resume room<PixelIcon name="arrow"/></PixelButton>
-              <LeaveRoomControl key={session.room.id} pending={session.pending} offline={session.offline} label="Create or join another room" onLeave={() => leaveRoom(session.room!.id)}/>
-            </div>
-          </section>
-          : <RoomEntry theme={theme} pending={session.pending} initialCode={initialCode} onCreate={name => { void session.create(name).then(success => { if (success) setView("room"); }); }} onJoin={(code, name) => { void session.join(code, name).then(success => { if (success) setView("room"); }); }}/>}
+        <div className="side-column">{roomPanel}{leave}</div>
       </div>
-      {started && room?.judge?.enabled && <JudgeConversation room={room} theme={theme}/>}
-      {started && room && debate && <DebateHistory debate={debate} players={room.players} you={room.you}/>}
-      <section className={`room-confirmation pixel-panel ${confirmed ? "is-confirmed" : ""}`} aria-live="polite" aria-atomic="true">
-        <PixelIcon name={confirmed ? "spark" : "leaf"}/><div><h2>{started ? "Different views. Equal time." : confirmed ? "Ready to start — both players confirmed!" : "A fair hearing. A shared starting line."}</h2><p>{started ? "Pausing the artwork does not pause the shared turn clock." : confirmed ? "Approve the same topic and positions. Player A chooses when to start." : "Create or join a room, agree on a topic and positions, then both players choose ready."}</p></div>
-        <PixelButton tone="cream" aria-pressed={paused} onClick={() => setPaused(value => !value)}><PixelIcon name={paused ? "play" : "pause"}/>{paused ? "Resume animation" : "Pause animation"}</PixelButton>
+      {room?.judge?.enabled && <JudgeConversation room={room} theme={theme}/>}
+      {room && debate && <DebateHistory debate={debate} players={room.players} you={room.you}/>}
+      {confirmation}
+      {footer()}
+    </main>
+  </div>;
+
+  // Before a debate starts, the theme's scene fills the screen and the controls float over it in two
+  // columns: your seat and setting on the left, the question and the judge on the right.
+  return <div className="theme-shell theme-shell--fit" data-theme={theme.id} style={themeStyles(theme)}>
+    <a className="skip-link" href="#courtroom-content">Skip to courtroom</a>
+    {header}
+    <main id="courtroom-content" className="app-shell lobby-shell" tabIndex={-1}>
+      <section className="topic-bar lobby-title" aria-label="Room lobby">
+        <p className="lobby-wordmark" aria-hidden="true">quarrel<span>.</span>io</p>
+        <div className="topic-copy"><p className="eyebrow">{theme.ui.benchCaption} <span>· TWO-PLAYER LOBBY</span></p><h1>Every great debate starts with hello.</h1></div>
+        {confirmation}
       </section>
-      <footer className="site-footer"><span><PixelIcon name="leaf"/> {theme.ui.tagline}</span><span>Made for Digital Sidekick <span className="footer-star">✦</span> Stage 4 · Your debate sidekick</span></footer>
+      {error}
+      <div className="lobby-column lobby-column--left">
+        {roomPanel}
+        <ThemeSelector selectedId={theme.id} hasRoom={Boolean(room)} canEdit={room?.you === "A" && !session.offline} pending={session.pending} locked={Boolean(room?.themeLocked)} onSelect={id => { void session.setTheme(id); }}/>
+      </div>
+      {arena}
+      <div className="lobby-column lobby-column--right">
+        {room && debate?.phase === "setup" && <DebateSetup room={room} debate={debate} pending={session.pending} offline={session.offline} onPropose={session.proposeTopic} onApprove={session.approveTopic} onRequestChanges={session.requestChanges} onStart={session.startDebate}/>}
+        <section className="judge-preview pixel-panel" aria-label="Judge personality preview">
+          <div><p className="eyebrow">MEET {theme.judge.displayName.toUpperCase()}</p><p>{theme.judge.personality}</p></div>
+          <label htmlFor="theme-judge-dialogue">Judge dialogue preview<select id="theme-judge-dialogue" aria-label="Judge dialogue preview" value={sample?.id ?? "lobby"} onChange={event => setPreview({ themeId: theme.id, sampleId: event.target.value })}>
+            <option value="lobby">Lobby greeting</option>{theme.judge.samples.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
+          </select><span>Sample lines in this tab. Live judge conversations begin with the debate.</span></label>
+        </section>
+        {leave}
+      </div>
+      {footer(pauseButton)}
     </main>
   </div>;
 }
