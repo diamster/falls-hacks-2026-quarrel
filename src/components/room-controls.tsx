@@ -81,8 +81,10 @@ export function RoomLobby({ room, pending, offline, live, onReady, onLeave, read
     <SectionHeading eyebrow="PRIVATE ROOM"><span id="lobby-title">{theme.ui.lobbyTitle}</span></SectionHeading>
     <div className="room-panel-body">
       <div className="room-code-label"><span className="eyebrow">INVITE WITH CODE</span><strong>{room.code}</strong></div>
-      <label className="room-field" htmlFor="share-url">Shareable invitation<input id="share-url" readOnly value={shareUrl} onFocus={event => event.target.select()}/></label>
-      <PixelButton tone="cream" className="room-copy" onClick={() => { void copy(); }}>Copy invite link</PixelButton>
+      <div className="room-invite-row">
+        <label className="room-field" htmlFor="share-url">Shareable invitation<input id="share-url" readOnly value={shareUrl} onFocus={event => event.target.select()}/></label>
+        <PixelButton tone="cream" className="room-copy" onClick={() => { void copy(); }}>Copy invite link</PixelButton>
+      </div>
       <p className="room-copy-status" role="status">{copied}</p>
       <ul className="room-player-list" aria-label="Room players">
         {getGameMode(room.mode).slots.map(slot => {

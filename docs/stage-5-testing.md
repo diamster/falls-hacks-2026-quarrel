@@ -123,3 +123,19 @@ The application screenshots were saved during the production-mode browser inspec
 - No Stage 5 deployment was performed. The existing public Vercel site continues to serve Stage 4 until a separately authorized deployment. This branch's localhost invitation works only where that localhost server is reachable.
 
 Previous verification remains in [Stage 4](stage-4-testing.md), [Stage 3](stage-3-testing.md), and [Cloud setup history](stage-2-5-cloud.md). The Stage 5 changes do not reinterpret those old reports as tests of the new flow.
+
+## UI branch `stage5-ui`: one-screen lobby and Settings popup (2026-11-07)
+
+`stage5-ui` was branched from `main` at `345af08` (the Stage 5 merge) and merges `cowork-one-screen-lobby` (`811f3f1`), a full-screen lobby built in Claude Cowork on top of the earlier Stage 4 layout.
+
+- **Lobby:** before a debate starts, the theme's scene fills the screen. Your room panel floats on the left; the Stage 5 setup (topic, your position, plan, start) and the current setting float on the right. Panels scroll inside their columns. Below 860 px the scene becomes a sticky band with the panels underneath. The started debate keeps Stage 5's paper layout.
+- **Settings:** opens as a popup (native `<dialog>`) from the header, the lobby's setting panel, the debate's setting strip and the subtopic heading, so the room and clocks stay on screen. `/settings` still works as a full page for direct links; both use the same `SettingsPanel`.
+- The legacy `multiplayer-app.tsx` keeps `main`'s version (Stage 4 regression coverage only); the Cowork layout was ported into `stage-five-app.tsx`.
+
+| Check | Result | Limits |
+| --- | --- | --- |
+| `tsc --noEmit` | PASS | Run with Windows Node (this checkout's `node_modules` holds Windows binaries). |
+| Coverage suite, excluding `tests/judge-config.test.ts` | **PASS: 532 passed, 5 opt-in skipped**; 96.39% statements, 93.32% branches, 95.08% functions, 98.27% lines | `judge-config.test.ts` fails only on Windows (2 tests): it asserts Unix file mode `0600`, which NTFS reports as `0666`. The test and `scripts/judge-config.mjs` are unchanged from `main`; Linux CI is the authority for it. |
+| New component tests | PASS | Settings popup from the lobby (open, change theme, Done, reopen, close) and from a running debate (locked theme, clock still shown). |
+| `npm run build` | PASS | |
+| Browser (headless Windows Chrome against `next dev`) | Lobby at 1440×900 and 390×844, Jungle and Courtroom, setup column scrolled to the plan, Settings popup at 1440, 1024 and 390, started debate at 1440 | Room states came from a stubbed `/api/rooms` response (the test fixture), not Supabase Cloud. No live two-browser session, Safari/Firefox, or real keyboard focus-trap check in the popup. Screenshots: `docs/screenshots/stage5-ui-*.png`. |

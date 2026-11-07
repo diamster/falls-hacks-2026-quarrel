@@ -24,3 +24,18 @@
 .settings-body .settings-save-note {font-size:11px;margin:0;}
 .settings-return {display:inline-flex;margin-top:24px;}
 @media(max-width:600px){.settings-introduction h1{font-size:36px}.settings-introduction{margin-bottom:23px}.settings-body{padding:17px;gap:18px}.settings-select{align-items:stretch;flex-direction:column}.settings-select select{width:100%;font-size:16px}.settings-return{width:100%;justify-content:center}.settings-shell .header-inner{gap:10px}.settings-shell .header-inner nav{gap:14px;font-size:10px}.settings-shell .brand{font-size:26px}.settings-shell .brand-mark{width:27px;height:27px}.settings-shell .brand-mark .pixel-icon{width:17px;height:17px}}
+
+/* Settings popup: the same panels as the page, over the current screen. */
+.settings-dialog {margin:auto;width:min(1180px,calc(100% - 48px));max-height:calc(100dvh - 32px);padding:0;overflow-y:auto;background:var(--theme-canvas,var(--paper));color:var(--ink);overscroll-behavior:contain;}
+.settings-dialog::backdrop {background:#05080ebf;backdrop-filter:blur(3px);}
+.settings-dialog-inner {position:relative;padding:28px;}
+.settings-dialog-heading {display:flex;align-items:flex-start;justify-content:space-between;gap:16px;}
+.settings-dialog-heading h2 {font-family:var(--font-pixel);font-size:38px;line-height:1.1;margin:5px 0 8px;}
+.settings-dialog .dialog-close {position:static;flex:none;color:var(--ink);}
+.settings-dialog-intro {font-size:13px;line-height:1.7;color:var(--muted);margin-bottom:22px;max-width:640px;}
+.settings-dialog .settings-room {margin-bottom:22px;}
+.settings-dialog .settings-personal {max-width:none;}
+.settings-dialog-done {margin-top:20px;}
+.settings-dialog :is(input,button,select,a):focus-visible {outline:2px solid var(--ink);outline-offset:2px;}
+@media(max-width:600px){.settings-dialog{width:100%;max-height:100dvh;height:100dvh;max-width:none;margin:0;border:0}.settings-dialog-inner{padding:18px 16px 24px}.settings-dialog-heading h2{font-size:32px}.settings-dialog-done{width:100%;justify-content:center}}
+@media(max-width:1180px) and (min-width:601px){.settings-dialog .theme-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}

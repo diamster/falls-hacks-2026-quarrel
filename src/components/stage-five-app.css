@@ -1,5 +1,5 @@
 .stage-five-setting {display:flex;justify-content:space-between;align-items:center;gap:1rem;padding:.85rem 0 1.1rem;font-size:.9rem;}
-.stage-five-setting a {display:inline-flex;align-items:center;gap:.5rem;font-weight:700;text-underline-offset:4px;}
+.stage-five-setting :is(a,button) {display:inline-flex;align-items:center;gap:.5rem;font-weight:700;text-underline-offset:4px;}
 .stage-five-setting svg {width:1rem;height:1rem;}
 .stage-five-room-details {margin-top:1.5rem;}
 .stage-five-room-details > summary {cursor:pointer;padding:1rem;border:2px solid var(--border);background:var(--paper);font-weight:700;}
@@ -7,3 +7,30 @@
 .stage-five-legacy {padding:1.25rem;margin-bottom:1.5rem;}
 .stage-five-legacy h2 {font-family:var(--font-pixel);font-size:1.8rem;}
 @media(max-width:600px){.stage-five-setting{align-items:flex-start;flex-direction:column;}.stage-five-shell .site-header nav{gap:.6rem;}.stage-five-shell .site-header nav a{font-size:.8rem;}}
+
+/* One-screen lobby (Stage 5 content on the full-screen layout in globals.css). */
+.theme-shell[data-theme].theme-shell--fit .lobby-column {
+  /* Panels written for paper read their colors from these tokens; on the dark glass they are mapped once here. */
+  --ink:var(--lb-ink);--muted:var(--lb-mute);--line:var(--lb-line-hi);--paper:#00000040;--theme-panel:var(--lb-fill-1);
+}
+.theme-shell[data-theme].theme-shell--fit .lobby-column>.pixel-panel {margin:0;background:var(--lb-slab);border:1px solid var(--lb-line);box-shadow:0 14px 40px #0006;backdrop-filter:blur(14px) saturate(.85);-webkit-backdrop-filter:blur(14px) saturate(.85);color:var(--lb-ink);}
+.theme-shell[data-theme].theme-shell--fit .lobby-column h3 {color:var(--lb-head);}
+.theme-shell[data-theme].theme-shell--fit .lobby-column :is(select,textarea) {color:var(--lb-ink);}
+.theme-shell[data-theme].theme-shell--fit .lobby-column select option {background:#141a26;color:var(--lb-ink);}
+.theme-shell[data-theme].theme-shell--fit .lobby-column [aria-labelledby="lawyer-setup-title"] {margin:0;}
+.theme-shell[data-theme].theme-shell--fit .lobby-column [aria-labelledby="lawyer-setup-title"]>div:not(.section-heading) {padding:12px 18px 18px;gap:18px;}
+.theme-shell[data-theme].theme-shell--fit .lobby-column [aria-labelledby="lawyer-setup-title"] h3 {font-size:20px;}
+.lobby-setting-body {padding:12px 18px 18px;display:grid;gap:12px;}
+.lobby-setting-body p {font-size:12px;line-height:1.55;}
+.lobby-setting-body strong {color:var(--lb-head,var(--ink));margin-right:4px;}
+.lobby-setting-body .pixel-button {justify-self:start;}
+.theme-shell--fit .stage-five-legacy h2 {font-size:1.3rem;color:var(--lb-head);}
+.theme-shell--fit .stage-five-legacy p {font-size:12px;line-height:1.55;margin-top:6px;}
+.theme-shell--fit .site-footer>span:last-child {text-align:right;}
+.theme-shell[data-theme].theme-shell--fit .lobby-column [aria-label="Confirmed positions"] {grid-template-columns:1fr;gap:10px;}
+.theme-shell[data-theme].theme-shell--fit .lobby-column [aria-label="Confirmed positions"]>div {padding:10px 12px;}
+.theme-shell[data-theme].theme-shell--fit .lobby-column [aria-label="Confirmed positions"]>div>p:nth-child(2) {font-size:13px;line-height:1.55;margin:6px 0;}
+.stage-five-shell .header-inner nav :is(a,button) {white-space:nowrap;}
+@media(max-width:600px){.theme-shell[data-theme].stage-five-shell .header-inner nav{gap:12px;font-size:11px}.theme-shell[data-theme].stage-five-shell .header-inner nav :is(a,button){font-size:11px}.theme-shell[data-theme].stage-five-shell .header-inner{gap:10px}}
+@media(max-width:380px){.theme-shell[data-theme].stage-five-shell .brand{font-size:19px}.theme-shell[data-theme].stage-five-shell .brand-mark{width:26px;height:26px}}
+.theme-shell[data-theme].theme-shell--fit .lobby-column [aria-labelledby="lawyer-setup-title"]>div:not(.section-heading)>div:last-child {flex-direction:column;align-items:stretch;gap:12px;}
