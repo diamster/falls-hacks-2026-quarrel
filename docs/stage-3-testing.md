@@ -1,6 +1,6 @@
 # Stage 3 testing and implementation record
 
-November 7, 2026. Branch: `quarrel-stage-3`. Backend: the existing authorized Supabase Cloud project `exjdvtqsalnkghyohyuh`. The website runs locally at `http://127.0.0.1:3000` (also reachable as `localhost:3000`). No Docker stack was used for Stage 3 verification, and no public website was deployed.
+November 7, 2026. Branch: `quarrel-stage-3`. Backend: the existing authorized Supabase Cloud project `exjdvtqsalnkghyohyuh`. The website runs locally at `http://127.0.0.1:3000` (also reachable as `localhost:3000`). The local app and Cloud verification did not use Docker. GitHub Actions separately verified the committed code using its existing isolated test database. No public website was deployed.
 
 ## Implemented boundary
 
@@ -43,7 +43,9 @@ Private debate tables have RLS enabled, no client table grants/policies and no R
 | Responsive layout | Desktop at 1280px and guest at 390px; mobile input and submit usable, document width remained 390px with no horizontal overflow. A temporary 390px iframe also checked composition and was removed |
 | Original Stage 1 preview | Dialogue cycling, character state and motion pause still worked; original artwork preserved |
 | Browser console | No warnings/errors in the verified host, guest or original preview views |
-| pgTAP suite | New 93-assertion file added for existing isolated CI; not run locally or against Cloud in this session because Cloud has no pgTAP extension. The 52 extension-free Cloud assertions and real service suites above ran instead |
+| pgTAP suite | All 177 assertions across three files passed in GitHub Actions, including the new 93-assertion debate suite. Not run locally or against Cloud, which has no pgTAP extension; Cloud was verified with 52 extension-free assertions and the real service suites above |
+
+[GitHub Actions run 42402729245](https://github.com/diamster/falls-hacks-2026-quarrel/actions/runs/42402729245) passed for implementation commit `775b7a4d3f52e644018835bff377985e6491ddfa`: unit/component tests and coverage, production build, all database assertions, HTTP API tests, the existing room/theme integration suite and the new debate integration suite. This report-only follow-up does not change the tested application or migration.
 
 The new integration suite tests concurrent start and submission requests from the same authenticated player; exactly one succeeds. It checks that stale revisions, guest/outsider setup changes, forged identity fields, future turns, duplicate arguments, empty/overlong text and late text are rejected. A 2,000-codepoint argument containing astral Unicode characters succeeds; 2,001 codepoints fails.
 
