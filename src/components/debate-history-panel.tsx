@@ -11,10 +11,12 @@ export interface DebateHistoryPanelProps {
   latestMessageId: string | null;
   currentSubtopic?: string | null;
   title?: string;
+  /** Fill the parent's height and scroll inside; the parent decides when it is shown (no mobile disclosure). */
+  fill?: boolean;
 }
 
 /** Presentation only: private lawyer conversations belong in a separate panel. */
-export function DebateHistoryPanel({ children, latestMessageId, currentSubtopic, title = "Debate history" }: DebateHistoryPanelProps) {
+export function DebateHistoryPanel({ children, latestMessageId, currentSubtopic, title = "Debate history", fill = false }: DebateHistoryPanelProps) {
   const id = useId();
   const viewport = useRef<HTMLDivElement>(null);
   const previousMessage = useRef(latestMessageId);
@@ -61,7 +63,7 @@ export function DebateHistoryPanel({ children, latestMessageId, currentSubtopic,
     if (atBottom) setUnread(false);
   }
 
-  return <aside className={`${styles.panel} pixel-panel`} aria-labelledby={`${id}-title`}>
+  return <aside className={`${styles.panel} pixel-panel`} aria-labelledby={`${id}-title`} data-fill={fill}>
     <header className={styles.heading}>
       <div><p className="eyebrow">SHARED RECORD</p><h2 id={`${id}-title`}>{title}</h2></div>
       <button className={styles.toggle} type="button" aria-expanded={expanded} aria-controls={`${id}-body`} onClick={() => setExpanded(value => !value)}>
@@ -79,7 +81,7 @@ export function DebateHistoryPanel({ children, latestMessageId, currentSubtopic,
       {unread && <button type="button" onClick={() => {
         followNewest(expanded);
         if (!expanded) { focusAfterExpand.current = true; setExpanded(true); }
-      }}>New messages · jump to latest<PixelIcon name="arrow"/></button>}
+      }}>New messages: jump to latest<PixelIcon name="arrow"/></button>}
     </div>
   </aside>;
 }

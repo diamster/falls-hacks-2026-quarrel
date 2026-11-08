@@ -6,6 +6,7 @@ import type { PlayerSlot, RoomSnapshot } from "@/lib/room-types";
 import type { ThemeConfig } from "@/themes";
 import { DebateArena } from "./debate-arena";
 import { DebateHistoryPanel } from "./debate-history-panel";
+import { JuryResults } from "./jury-results";
 import { formatTurnTime } from "./debate-ui";
 import { PixelButton, PixelIcon, SectionHeading } from "./ui";
 import styles from "./lawyer-debate.module.css";
@@ -96,9 +97,23 @@ export interface LawyerDebateViewProps {
 
 export function LawyerDebateView({ room, theme, clocks, pending, offline, paused = false, onSend, onConsult }: LawyerDebateViewProps) {
   const debate = room.lawyer;
+  const complete = debate?.phase === "complete";
+  const verdictKey = debate && complete && debate.verdict ? `${room.id}:${debate.revision}:${debate.verdict.outcome}` : null;
+  const [revealOpen, setRevealOpen] = useState(false);
+  const [tab, setTab] = useState<"act" | "record" | "private">("act");
+  // The decision opens itself once per room and verdict; after closing, the full record stays on the page.
+  useEffect(() => {
+    if (!verdictKey) return;
+    let seen = false;
+    try { seen = window.sessionStorage.getItem(`quarrel-verdict-seen:${verdictKey}`) === "1"; } catch { /* storage unavailable: show it */ }
+    if (!seen) setRevealOpen(true);
+  }, [verdictKey]);
   if (!debate) return null;
+  function closeReveal() {
+    setRevealOpen(false);
+    try { if (verdictKey) window.sessionStorage.setItem(`quarrel-verdict-seen:${verdictKey}`, "1"); } catch { /* not remembered; harmless */ }
+  }
   const current = debate.subtopics.find(item => item.ordinal === debate.currentSubtopic);
-  const complete = debate.phase === "complete";
   const playerName = (slot: PlayerSlot) => room.players.find(player => player.slot === slot)?.name ?? `Player ${slot}`;
   const messages = [...debate.history].sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt) || a.label.localeCompare(b.label));
   const last = messages.at(-1);
@@ -108,6 +123,9 @@ export function LawyerDebateView({ room, theme, clocks, pending, offline, paused
     : debate.state === "consulting" && debate.consultations.some(item => item.status === "pending") ? room.you : null;
   const thinking = (debate.phase === "summary" && !currentSummary) || debate.phase === "jury";
   const activeName = debate.activeSlot ? playerName(debate.activeSlot) : null;
+  const writingSlot = debate.state === "composing" ? debate.activeSlot : null;
+  // The lit side: whoever is writing, or the side whose lawyer is presenting. Private consultations light nothing.
+  const spotlight = writingSlot ?? (debate.state === "lawyering" ? workingSlot ?? null : null);
   const dialogue = debate.phase === "jury" ? "The jury is reviewing the public debate and the judge’s summaries. Private consultations are not evidence."
     : complete ? "The jury’s decision is ready. Review both sides’ reasoning and the complete record."
     : debate.phase === "summary" ? currentSummary?.text ?? "I’m summarizing the reasoning from both sides before we continue."
@@ -121,7 +139,10 @@ export function LawyerDebateView({ room, theme, clocks, pending, offline, paused
     lawyers: Object.fromEntries(slots.map(slot => [slot, { assetId: theme.lawyers[slot].assetId, label: theme.lawyers[slot].description, name: theme.lawyers[slot].displayName, role: `Lawyer ${slot}`, working: workingSlot === slot, status: debate.state === "consulting" ? "Private consultation…" : "Preparing the presentation…" }])) as Record<PlayerSlot, { assetId: string; label: string; name: string; role: string; working: boolean; status: string }>,
     jury: { assetId: theme.jury.assetId, label: theme.jury.description, name: theme.jury.displayName, role: "Jury", working: debate.phase === "jury", status: debate.phase === "jury" ? "Deliberating…" : complete ? "Decision delivered" : "Listening" },
   };
-  return <section className={styles.debate} aria-label="Lawyer sidekick debate" data-state={turnState}>
+  const hasPrivate = debate.phase === "subtopic" || debate.consultations.length > 0;
+  const actLabel = complete ? "Decision" : debate.phase === "subtopic" ? (room.you === writingSlot ? "Your turn" : "Your point") : "Status";
+  const pivot = complete ? "Done" : writingSlot ? "Writing" : spotlight ? "Lawyer" : "Paused";
+  return <section className={styles.debate} aria-label="Lawyer sidekick debate" data-state={turnState} data-tab={tab}>
     <header className={styles.subtopicHeading}>
       <div className={styles.headingText}>
         <h1 className={styles.topic}>{debate.topic}</h1>
@@ -130,25 +151,36 @@ export function LawyerDebateView({ room, theme, clocks, pending, offline, paused
       </div>
       <ol className={styles.progress} aria-label="Subtopics">{debate.subtopics.map(item => { const state = complete || debate.phase === "jury" || (debate.currentSubtopic !== null && item.ordinal < debate.currentSubtopic) ? "done" : item.ordinal === debate.currentSubtopic ? "current" : "next"; return <li key={item.ordinal} data-state={state} aria-current={state === "current" ? "step" : undefined} title={item.question}><span className="sr-only">Subtopic {item.ordinal}, {state === "done" ? "finished" : state === "current" ? "current" : "upcoming"}: </span>{item.ordinal}</li>; })}</ol>
     </header>
-    <div className={styles.layout}>
-      <div className={styles.main}>
-        <div className={styles.clocks} aria-label="Player clocks">{slots.map(slot => { const running = debate.state === "composing" && debate.activeSlot === slot; return <div key={slot} className={styles.clock} data-slot={slot} data-active={running} data-expired={clocks[slot] <= 0}>
-          <span className={styles.clockName}>{playerName(slot)}<em>{slot === room.you ? "You" : `Player ${slot}`}</em></span>
-          <strong role="timer" aria-label={`Player ${slot}: ${clocks[slot]} seconds remaining`}>{formatTurnTime(clocks[slot])}</strong>
-          <small>{complete ? "Complete" : clocks[slot] <= 0 ? "Time used" : running ? "Writing clock running" : "Clock paused"}</small>
-        </div>; })}</div>
-        <DebateArena theme={theme} players={{ A: { name: playerName("A"), characterId: room.players.find(player => player.slot === "A")?.selectedCharacterId }, B: { name: playerName("B"), characterId: room.players.find(player => player.slot === "B")?.selectedCharacterId } }} dialogue={dialogue} dialogueKey={`${debate.phase}:${debate.state}:${debate.activeSlot}:${judgeMessage?.id ?? current?.ordinal}`} judgeLabel={thinking ? "REVIEWING BOTH SIDES" : complete ? "DEBATE CONCLUDED" : "NEUTRAL JUDGE"} judgeState={thinking ? "thinking" : judgeMessage ? "speaking" : "listening"} paused={paused} roomCode={room.code} showTimer={false} counsel={counsel} turn={{ label: complete ? "DEBATE COMPLETE" : debate.state === "composing" ? `PLAYER ${debate.activeSlot} IS WRITING` : "CLOCKS PAUSED", time: complete ? "DONE" : debate.state === "composing" && debate.activeSlot ? formatTurnTime(clocks[debate.activeSlot]) : "…", activeSlot: debate.state === "composing" ? debate.activeSlot : null, complete }}/>
-        {complete ? <JuryDecision debate={debate} room={room}/> : <>
-          {(debate.phase === "summary" || debate.phase === "jury") && <section className={`pixel-panel ${styles.processing}`} role="status"><PixelIcon name="gavel"/><p data-readable-text>{debate.phase === "summary" ? currentSummary ? "The summary is ready above and saved in the shared record. The next phase will begin shortly." : "Both writing clocks are empty. The judge is preparing a shared summary before the next subtopic." : "All subtopics are finished. The jury is evaluating the publicly presented arguments and summaries."}</p></section>}
-          {debate.phase === "subtopic" && <LawyerComposers key={`${room.id}:${debate.revision}:${debate.currentSubtopic}`} room={room} debate={debate} theme={theme} remaining={clocks[room.you]} pending={pending} offline={offline} onSend={onSend} onConsult={onConsult}/>}
-        </>}
-        {debate.phase !== "subtopic" && debate.consultations.length > 0 && <details className={`pixel-panel ${styles.privateComposer}`}><summary><PixelIcon name="chat"/><span>Your private lawyer record<small>Only you. Not part of the jury’s evidence.</small></span></summary><div className={styles.composerBody}><PrivateLawyerHistory debate={debate} theme={theme} slot={room.you}/></div></details>}
-      </div>
-      <DebateHistoryPanel latestMessageId={latestKey}>
+    {/* Both clocks meet in the centre, between the two sides; the lit one points at whoever has the floor. */}
+    <div className={styles.clocks} aria-label="Player clocks" data-lit={spotlight ?? "none"}>
+      {slots.map(slot => { const running = writingSlot === slot; return <div key={slot} className={styles.clock} data-slot={slot} data-active={running} data-lit={spotlight === slot} data-expired={clocks[slot] <= 0}>
+        <span className={styles.clockName}>{playerName(slot)}<em>{slot === room.you ? "You" : `Player ${slot}`}</em></span>
+        <strong role="timer" aria-label={`Player ${slot}: ${clocks[slot]} seconds remaining`}>{formatTurnTime(clocks[slot])}</strong>
+        <small>{complete ? "Complete" : clocks[slot] <= 0 ? "Time used" : running ? "Writing clock running" : spotlight === slot ? "Lawyer presenting" : "Clock paused"}</small>
+      </div>; }).flatMap((clock, index) => index === 0 ? [clock, <div key="pivot" className={styles.pivot} data-side={spotlight ?? "none"} aria-hidden="true"><span className={styles.pivotArrow}/><span>{pivot}</span></div>] : [clock])}
+    </div>
+    <div className={styles.stage}>
+      <DebateArena theme={theme} players={{ A: { name: playerName("A"), characterId: room.players.find(player => player.slot === "A")?.selectedCharacterId }, B: { name: playerName("B"), characterId: room.players.find(player => player.slot === "B")?.selectedCharacterId } }} dialogue={dialogue} dialogueKey={`${debate.phase}:${debate.state}:${debate.activeSlot}:${judgeMessage?.id ?? current?.ordinal}`} judgeLabel={thinking ? "REVIEWING BOTH SIDES" : complete ? "DEBATE CONCLUDED" : "NEUTRAL JUDGE"} judgeState={thinking ? "thinking" : judgeMessage ? "speaking" : "listening"} paused={paused} roomCode={room.code} showTimer={false} counsel={counsel} spotlight={spotlight} spotlightLabel={writingSlot ? "WRITING" : "PRESENTING"} turn={{ label: complete ? "DEBATE COMPLETE" : debate.state === "composing" ? `PLAYER ${debate.activeSlot} IS WRITING` : "CLOCKS PAUSED", time: complete ? "DONE" : writingSlot ? formatTurnTime(clocks[writingSlot]) : "…", activeSlot: writingSlot, complete }}/>
+    </div>
+    <nav className={styles.tabs} aria-label="Debate panels">
+      <button type="button" aria-pressed={tab === "act"} onClick={() => setTab("act")}>{actLabel}</button>
+      <button type="button" aria-pressed={tab === "record"} onClick={() => setTab("record")}>Shared record</button>
+      {hasPrivate && <button type="button" aria-pressed={tab === "private"} onClick={() => setTab("private")}>My lawyer</button>}
+    </nav>
+    <div className={styles.act}>
+      {complete ? <JuryDecision debate={debate} room={room} hidden={revealOpen} onReplay={() => setRevealOpen(true)}/> : <>
+        {(debate.phase === "summary" || debate.phase === "jury") && <section className={`pixel-panel ${styles.processing}`} role="status"><PixelIcon name="gavel"/><p data-readable-text>{debate.phase === "summary" ? currentSummary ? "The summary is ready above and saved in the shared record. The next phase will begin shortly." : "Both writing clocks are empty. The judge is preparing a shared summary before the next subtopic." : "All subtopics are finished. The jury is evaluating the publicly presented arguments and summaries."}</p></section>}
+        {debate.phase === "subtopic" && <LawyerComposers key={`${room.id}:${debate.revision}:${debate.currentSubtopic}`} room={room} debate={debate} theme={theme} remaining={clocks[room.you]} pending={pending} offline={offline} onSend={onSend} onConsult={onConsult}/>}
+      </>}
+    </div>
+    {debate.phase !== "subtopic" && debate.consultations.length > 0 && <details className={`pixel-panel ${styles.privateComposer}`}><summary><PixelIcon name="chat"/><span>Your private lawyer record<small>Only you. Not part of the jury’s evidence.</small></span></summary><div className={styles.composerBody}><PrivateLawyerHistory debate={debate} theme={theme} slot={room.you}/></div></details>}
+    <div className={styles.record}>
+      <DebateHistoryPanel latestMessageId={latestKey} fill>
         {messages.length === 0 ? <p className={styles.help}>The shared record will appear here as the debate begins.</p> : <ol className={styles.transcript}>{messages.map(message => <PublicMessage key={message.id} message={message} room={room} theme={theme}/>)}</ol>}
         {last?.status === "pending" && <p className={styles.help}>Waiting for the saved presentation. Both writing clocks are paused.</p>}
       </DebateHistoryPanel>
     </div>
+    {revealOpen && complete && debate.verdict && <JuryResults debate={debate} room={room} theme={theme} onClose={closeReveal}/>}
   </section>;
 }
 
@@ -163,11 +195,12 @@ function PublicMessage({ message, room, theme }: { message: LawyerPublicMessage;
   </li>;
 }
 
-function JuryDecision({ debate, room }: { debate: LawyerDebateSnapshot; room: RoomSnapshot }) {
+function JuryDecision({ debate, room, hidden, onReplay }: { debate: LawyerDebateSnapshot; room: RoomSnapshot; hidden: boolean; onReplay: () => void }) {
+  if (hidden) return null;
   const verdict = debate.verdict;
   const source = debate.history.find(item => item.kind === "jury_verdict" && item.status === "complete")?.source;
   const name = verdict?.outcome === "A" || verdict?.outcome === "B" ? room.players.find(player => player.slot === verdict.outcome)?.name ?? `Player ${verdict.outcome}` : null;
-  return <section className={`pixel-panel ${styles.verdict}`} aria-labelledby="jury-decision-title"><p className="eyebrow">FINAL JURY DECISION</p>{source && source !== "ai" && <p className={styles.source}>{source === "demo" ? "Demo verdict" : "Fallback verdict"} · no live AI evaluation</p>}<h2 id="jury-decision-title">{!verdict ? "The saved verdict is loading" : verdict.outcome === "split" ? "Split decision / inconclusive" : `The stronger presented case: ${name}`}</h2>{verdict && <><p data-readable-text>{verdict.reasoning}</p><ol>{verdict.perSubtopic.map(item => <li key={item.ordinal}><strong>Subtopic {item.ordinal}</strong><p data-readable-text>{item.text}</p></li>)}</ol><p className={styles.help}>This evaluates the arguments presented here. It does not decide who is factually or morally right. Private consultations are excluded.</p></>}</section>;
+  return <section className={`pixel-panel ${styles.verdict}`} aria-labelledby="jury-decision-title"><p className="eyebrow">FINAL JURY DECISION</p>{source && source !== "ai" && <p className={styles.source}>{source === "demo" ? "Demo verdict" : "Fallback verdict"} · no live AI evaluation</p>}<h2 id="jury-decision-title">{!verdict ? "The saved verdict is loading" : verdict.outcome === "split" ? "Split decision / inconclusive" : `The stronger presented case: ${name}`}</h2>{verdict && <><p data-readable-text>{verdict.reasoning}</p><ol>{verdict.perSubtopic.map(item => <li key={item.ordinal}><strong>Subtopic {item.ordinal}</strong><p data-readable-text>{item.text}</p></li>)}</ol><p className={styles.help}>This evaluates the arguments presented here. It does not decide who is factually or morally right. Private consultations are excluded.</p><PixelButton tone="cream" onClick={onReplay}>Replay the jury’s decision</PixelButton></>}</section>;
 }
 
 function PrivateLawyerHistory({ debate, theme, slot }: { debate: LawyerDebateSnapshot; theme: ThemeConfig; slot: PlayerSlot }) {

@@ -42,7 +42,6 @@
 .verdict li {border-top:1px solid var(--line);padding-top:13px;}
 .verdict li strong {font-size:11px;text-transform:uppercase;letter-spacing:.6px;}
 .verdict li p {font-size:14px;line-height:1.7;margin-top:6px;}
-.composers {display:grid;gap:16px;}
 .privateComposer>summary {display:flex;align-items:center;gap:12px;padding:18px 20px;cursor:pointer;list-style:none;}
 .privateComposer>summary::-webkit-details-marker {display:none;}
 .privateComposer>summary>span {font-family:var(--font-pixel);font-size:24px;}
@@ -54,55 +53,117 @@
 .privateHistory article>p:not(:global(.eyebrow)) {font-size:13px;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere;margin:7px 0 12px;}
 .privateHistory small {font-size:10px;color:var(--muted);}
 
-/* ---- Debate screen: one heading, one set of clocks, the scene, then the input ---- */
-.debate {display:grid;gap:12px;}
-.subtopicHeading {display:flex;align-items:flex-end;justify-content:space-between;gap:20px;}
+/* ---- Debate screen: fills its container (Session 1 renders it in a 100dvh box); the page never scrolls ----
+   Desktop: heading, centre clocks, scene and input on the left; the shared record fills the right column
+   and scrolls inside. Phones: heading, clocks and a compact scene on top, one panel at a time below
+   (your point, shared record, my lawyer) with the tab bar pinned to the bottom. */
+.debate {
+  height:100%;min-height:min(100dvh,560px);box-sizing:border-box;overflow:hidden;
+  display:grid;gap:10px 14px;padding:12px 16px 14px;
+  grid-template-columns:minmax(0,1fr) minmax(300px,360px);
+  grid-template-rows:auto auto minmax(0,1fr) auto;
+  grid-template-areas:"head record" "clocks record" "stage record" "act private";
+}
+.debate:has(.privateComposer) .record {padding-bottom:var(--private-h,74px);}
+.subtopicHeading {grid-area:head;display:flex;align-items:flex-end;justify-content:space-between;gap:16px;min-width:0;}
 .headingText {min-width:0;}
-.topic {font-family:var(--font-sans);font-size:12px;font-weight:700;letter-spacing:.4px;line-height:1.4;color:var(--muted);margin:0 0 6px;overflow-wrap:anywhere;}
-.subtopicHeading h2 {font-family:var(--font-pixel);font-size:28px;line-height:1.15;margin-top:3px;overflow-wrap:anywhere;}
+.topic {font-family:var(--font-sans);font-size:12px;font-weight:700;letter-spacing:.4px;line-height:1.35;color:var(--muted);margin:0 0 4px;overflow-wrap:anywhere;}
+.subtopicHeading h2 {font-family:var(--font-pixel);font-size:26px;line-height:1.12;margin-top:2px;overflow-wrap:anywhere;}
 .progress {display:flex;gap:6px;list-style:none;margin:0;padding:0;flex:none;}
 .progress li {display:grid;place-items:center;width:30px;height:30px;border:2px solid var(--ink);background:var(--paper);font-family:var(--font-pixel);font-size:16px;line-height:1;color:var(--muted);}
 .progress li[data-state="done"] {background:var(--theme-secondary);border-color:var(--theme-secondary);color:var(--paper);}
 .progress li[data-state="current"] {background:var(--theme-accent);color:var(--theme-accent-ink);box-shadow:2px 2px 0 var(--ink);}
-.layout {display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,360px);gap:16px;align-items:start;}
-.main {min-width:0;display:grid;gap:12px;}
-.main :global(.debate-arena) {min-height:0;height:clamp(320px,calc(100dvh - 510px),460px);}
-.main :global(.judge-speech) {max-width:min(420px,52%);max-height:120px;overflow-y:auto;}
-/* chess clocks: A on the left, B on the right, the running one lit */
-.clocks {display:grid;grid-template-columns:1fr 1fr;gap:12px;}
-.clock {display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:0 14px;background:var(--paper);border:2px solid var(--ink);padding:8px 14px;min-width:0;transition:background .15s,box-shadow .15s;}
-.clock[data-slot="B"] {grid-template-columns:auto minmax(0,1fr);text-align:right;}
+
+/* centre clocks: A's time and B's time meet at the middle; the pivot points at whoever has the floor */
+.clocks {grid-area:clocks;justify-self:center;width:min(100%,640px);display:grid;grid-template-columns:minmax(0,1fr) 76px minmax(0,1fr);align-items:stretch;}
+.clock {display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:0 12px;min-width:0;padding:7px 12px;background:var(--paper);border:2px solid var(--ink);color:var(--ink);transition:background .15s steps(2,end),color .15s steps(2,end);}
+.clock[data-slot="A"] {text-align:right;border-right:0;}
+.clock[data-slot="B"] {grid-template-columns:auto minmax(0,1fr);border-left:0;}
 .clock[data-slot="B"]>strong {grid-column:1;grid-row:1/3;}
-.clockName {display:flex;align-items:baseline;gap:8px;min-width:0;font-size:14px;font-weight:750;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
-.clock[data-slot="B"] .clockName {justify-content:flex-end;}
+.clock[data-slot="A"]>strong {grid-column:2;grid-row:1/3;}
+.clockName {display:flex;align-items:baseline;gap:7px;min-width:0;font-size:14px;font-weight:750;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+.clock[data-slot="A"] .clockName {justify-content:flex-end;}
 .clockName em {font-style:normal;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);}
-.clock>strong {font-family:var(--font-pixel);font-size:34px;line-height:1;font-variant-numeric:tabular-nums;grid-column:2;grid-row:1/3;}
+.clock>strong {font-family:var(--font-pixel);font-size:34px;line-height:1;font-variant-numeric:tabular-nums;}
 .clock>small {font-size:10px;color:var(--muted);}
-.clock[data-active="true"] {background:var(--theme-accent);color:var(--theme-accent-ink);box-shadow:3px 3px 0 var(--ink);}
-.clock[data-active="true"] :is(small,.clockName em) {color:inherit;}
-.clock[data-expired="true"] {opacity:.6;}
+.clock[data-lit="true"] {background:var(--theme-accent);color:var(--theme-accent-ink);}
+.clock[data-lit="true"] :is(small,.clockName em) {color:inherit;}
+.clocks[data-lit="A"] .clock[data-slot="B"],.clocks[data-lit="B"] .clock[data-slot="A"] {background:var(--theme-panel,var(--paper));color:var(--muted);}
+.clock[data-expired="true"]>strong {text-decoration:line-through;text-decoration-thickness:2px;}
+.pivot {display:grid;place-items:center;align-content:center;gap:3px;border:2px solid var(--ink);background:var(--ink);color:var(--paper);font-size:9px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;}
+.pivotArrow {width:26px;height:18px;background:var(--theme-accent,#f6be5e);clip-path:polygon(0 50%,35% 0,35% 30%,100% 30%,100% 70%,35% 70%,35% 100%);}
+.pivot[data-side="B"] .pivotArrow {transform:scaleX(-1);}
+.pivot[data-side="none"] .pivotArrow {width:16px;clip-path:polygon(0 0,35% 0,35% 100%,0 100%,0 0,65% 0,100% 0,100% 100%,65% 100%,65% 0);background:var(--paper);}
+.pivot[data-side="A"],.pivot[data-side="B"] {animation:pivot-blink 1.2s steps(2,end) infinite;}
+@keyframes pivot-blink {50%{background:color-mix(in srgb,var(--ink) 82%,var(--theme-accent,#f6be5e))}}
+
+.stage {grid-area:stage;min-height:0;display:flex;}
+.stage :global(.debate-arena) {flex:1 1 auto;min-height:220px;height:auto;}
+.stage :global(.judge-speech) {max-height:120px;overflow-y:auto;}
+
+.tabs {display:none;}
+.act {display:contents;}
+.act>:not(.composers),.composers>.publicComposer {grid-area:act;min-width:0;}
+.composers {display:contents;}
+.privateComposer {grid-area:private;align-self:end;min-width:0;position:relative;z-index:2;}
+.record {grid-area:record;grid-row:1/-1;min-height:0;min-width:0;}
+.record>aside {height:100%;}
+.verdict {max-height:min(44dvh,380px);overflow-y:auto;}
+.processing {align-self:end;}
+/* desktop: the private lawyer panel opens upward over the shared record instead of pushing the scene */
+@media(min-width:901px){
+  .privateComposer[open]>.composerBody {position:absolute;z-index:20;left:-2px;right:-2px;bottom:100%;max-height:calc(100dvh - 220px);overflow-y:auto;background:var(--paper);border:2px solid var(--ink);border-bottom:0;box-shadow:4px -4px 0 #0000002a;}
+  .privateComposer>summary {padding:10px 14px;min-height:64px;box-sizing:border-box;}
+  .privateComposer>summary>span {font-size:20px;}
+}
+
 /* argument input */
-.publicComposer {border-top:4px solid var(--theme-accent);}
+.publicComposer {border-top:4px solid var(--theme-accent);align-self:end;}
 .publicComposer[data-active="true"] {box-shadow:4px 4px 0 var(--theme-accent);}
-.composerBody {padding:14px 16px;display:grid;gap:10px;}
-.composerTop {display:flex;align-items:baseline;justify-content:space-between;gap:6px 16px;flex-wrap:wrap;}
-.composerTop h3 {font-family:var(--font-pixel);font-size:22px;line-height:1.1;margin:0;}
+.composerBody {padding:12px 14px;display:grid;gap:8px;}
+.composerTop {display:flex;align-items:baseline;justify-content:space-between;gap:4px 16px;flex-wrap:wrap;}
+.composerTop h3 {font-family:var(--font-pixel);font-size:21px;line-height:1.1;margin:0;}
 .composerTop h3 span {display:block;font-family:var(--font-sans);font-size:11px;font-weight:600;color:var(--muted);margin-top:3px;}
-.composerTop .help {flex:1 1 260px;margin:0;text-align:right;line-height:1.5;}
+.composerTop .help {flex:1 1 260px;margin:0;text-align:right;line-height:1.45;}
 .argumentField {margin:0;}
 .fieldLabel {position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;}
-.argumentField textarea {min-height:76px;resize:vertical;}
+.argumentField textarea {min-height:64px;resize:none;}
 .composerFooter {display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
 .counter {font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;}
-.fineprint {font-size:11px;line-height:1.5;color:var(--muted);margin:0;}
+.fineprint {font-size:11px;line-height:1.45;color:var(--muted);margin:0;}
+@media(max-height:820px) and (min-width:901px){.fineprint{display:none}.subtopicHeading h2{font-size:22px}.clock>strong{font-size:30px}.clock{padding:5px 12px}}
 
-@media(max-width:1100px){.layout{grid-template-columns:minmax(0,1fr) 300px;gap:12px}.subtopicHeading h2{font-size:24px}.clock>strong{font-size:30px}}
-@media(max-width:900px){.layout{grid-template-columns:1fr}.main :global(.debate-arena){height:clamp(260px,52vw,380px)}.composerTop .help{text-align:left}}
+@media(max-width:1100px){.debate{grid-template-columns:minmax(0,1fr) 300px;gap:10px 12px;padding:10px 12px 12px}.subtopicHeading h2{font-size:22px}.clock>strong{font-size:30px}}
+
+/* phones and narrow tablets: one panel at a time, tab bar pinned to the bottom */
+@media(max-width:900px){
+  .debate{grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto auto minmax(0,1fr) auto;grid-template-areas:"head" "clocks" "stage" "pane" "tabs";gap:8px;padding:8px 10px 0;}
+  .record,.debate:has(.privateComposer) .record{grid-row:auto;padding-bottom:0;}
+  .stage{height:clamp(170px,30dvh,320px);}
+  .stage :global(.debate-arena){min-height:0;}
+  .act>:not(.composers),.composers>.publicComposer,.privateComposer,.record{grid-area:pane;max-height:100%;overflow-y:auto;}
+  .privateComposer{align-self:end;}
+  .debate[data-tab="act"] :is(.record,.privateComposer),
+  .debate[data-tab="record"] :is(.act>:not(.composers),.publicComposer,.privateComposer),
+  .debate[data-tab="private"] :is(.act>:not(.composers),.publicComposer,.record){display:none;}
+  .verdict{max-height:none;}
+  .tabs{grid-area:tabs;display:flex;margin:0 -10px;border-top:2px solid var(--ink);background:var(--paper);}
+  .tabs button{flex:1 1 0;min-height:48px;padding:6px 4px;border:0;border-right:1px solid var(--line);background:transparent;color:var(--muted);font:inherit;font-size:13px;font-weight:750;cursor:pointer;}
+  .tabs button:last-child{border-right:0;}
+  .tabs button[aria-pressed="true"]{background:var(--theme-accent);color:var(--theme-accent-ink);box-shadow:inset 0 3px 0 var(--ink);}
+  .tabs button:focus-visible{outline:3px solid var(--ink);outline-offset:-4px;}
+  .composerTop .help{text-align:left;}
+}
 @media(max-width:600px){
   .setupBody{padding:16px;gap:18px}.positions{grid-template-columns:1fr}.startRow{flex-direction:column;align-items:stretch;gap:13px}.startRow>button{width:100%}
-  .debate{gap:10px}.subtopicHeading{align-items:flex-start;gap:10px}.subtopicHeading h2{font-size:20px}.topic{font-size:11px;margin-bottom:3px}.progress li{width:24px;height:24px;font-size:13px}
-  .clocks{gap:8px}.clock,.clock[data-slot="B"]{grid-template-columns:1fr;padding:6px 10px;gap:1px}.clock>strong,.clock[data-slot="B"]>strong{grid-column:1;grid-row:2;font-size:26px}.clockName{font-size:12px}.clockName em{display:none}.clock>small{font-size:9px}
-  .main :global(.debate-arena){height:250px}.main :global(.judge-speech){max-width:72%;max-height:84px}
-  .composerBody{padding:12px;gap:8px}.composerTop h3{font-size:19px}.composerFooter :global(.pixel-button){width:100%}.argumentField textarea{font-size:16px}
-  .verdict{padding:17px}.verdict h2{font-size:25px}.processing{padding:16px}
+  .subtopicHeading{align-items:flex-start;gap:8px}.subtopicHeading h2{font-size:18px}.topic{font-size:11px;margin-bottom:2px}.progress li{width:22px;height:22px;font-size:12px}
+  .clocks{grid-template-columns:minmax(0,1fr) 54px minmax(0,1fr)}.clock{padding:5px 8px;gap:0 6px}.clock>strong{font-size:24px}.clockName{font-size:12px}.clockName em{display:none}.clock>small{font-size:9px}
+  .clock[data-slot="A"],.clock[data-slot="B"]{grid-template-columns:1fr}.clock>strong,.clock[data-slot="A"]>strong,.clock[data-slot="B"]>strong{grid-column:1;grid-row:2}
+  .pivot{font-size:7px;letter-spacing:.6px}.pivotArrow{width:20px;height:14px}
+  .stage :global(.judge-speech){max-height:76px;}
+  .composerBody{padding:10px;gap:7px}.composerTop h3{font-size:18px}.composerFooter :global(.pixel-button){width:100%}.argumentField textarea{font-size:16px;min-height:72px}
+  .fineprint{display:none}
+  .verdict{padding:16px}.verdict h2{font-size:24px}.processing{padding:14px}
 }
+@media(prefers-reduced-motion:reduce){.pivot{animation:none!important}.clock{transition:none}}
+:global([data-reduced-motion="true"]) .pivot,:global([data-pause-animations="true"]) .pivot{animation:none;}

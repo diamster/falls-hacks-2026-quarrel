@@ -1,4 +1,5 @@
 import { BackgroundAsset, BenchAsset, CharacterAsset } from "@/themes/assets";
+import { PixelBackdrop, PixelJuryBox, isSceneTheme } from "@/themes/art/pixel-scene";
 import type { CharacterPosition, ThemeConfig } from "@/themes";
 import { PixelCharacter, JudgeCharacter } from "./pixel-character";
 import { PixelIcon } from "./ui";
@@ -11,7 +12,7 @@ interface CounselMember { assetId: string; label: string; name: string; role: st
 export interface ArenaCounsel { lawyers: Record<CharacterPosition, CounselMember>; jury: CounselMember }
 
 /** Two speaking positions can later receive round-specific team representatives. */
-export function DebateArena({ theme, players, dialogue, dialogueKey, paused, roomCode, turn, judgeState, judgeLabel, counsel, showTimer = true }: {
+export function DebateArena({ theme, players, dialogue, dialogueKey, paused, roomCode, turn, judgeState, judgeLabel, counsel, showTimer = true, spotlight = null, spotlightLabel = "SPEAKING" }: {
   theme: ThemeConfig; players: ArenaParticipants; dialogue: string; dialogueKey: string;
   paused: boolean; roomCode?: string;
   turn?: { label: string; time: string; activeSlot: CharacterPosition | null; complete: boolean };
@@ -19,9 +20,12 @@ export function DebateArena({ theme, players, dialogue, dialogueKey, paused, roo
   counsel?: ArenaCounsel;
   /** Hide the scene's own timer when the page already shows the players' clocks. */
   showTimer?: boolean;
+  /** The side whose turn it is (player writing or their lawyer presenting): lit, the other side dimmed. */
+  spotlight?: CharacterPosition | null;
+  spotlightLabel?: string;
 }) {
-  return <section className="courtroom pixel-panel debate-arena" aria-label={theme.environmentLabel} data-theme={theme.id} data-paused={paused} data-room={roomCode ? "joined" : "none"} data-counsel={Boolean(counsel)}>
-    <BackgroundAsset assetId={theme.assets.background} className="jungle-backdrop"/>
+  return <section className="courtroom pixel-panel debate-arena" aria-label={theme.environmentLabel} data-theme={theme.id} data-paused={paused} data-room={roomCode ? "joined" : "none"} data-counsel={Boolean(counsel)} data-spotlight={spotlight ?? "none"}>
+    {isSceneTheme(theme.id) ? <PixelBackdrop theme={theme.id} className="jungle-backdrop pixel-backdrop"/> : <BackgroundAsset assetId={theme.assets.background} className="jungle-backdrop"/>}
     <div className="court-vignette"/>
     <div className="court-room-code"><span className="status-dot"/> ROOM <strong>{roomCode ?? "— — —"}</strong><span className="demo-tag">PRIVATE</span></div>
     {showTimer && <div className="turn-timer" aria-label={turn ? `${turn.label}: ${turn.time}` : "Waiting room: debate not started"}><PixelIcon name="clock"/><strong>{turn?.time ?? "LOBBY"}</strong><span>{turn?.label ?? "TAKE YOUR SEAT"}</span></div>}
@@ -33,6 +37,11 @@ export function DebateArena({ theme, players, dialogue, dialogueKey, paused, roo
         <p key={dialogueKey} className="speech-text">{dialogue}</p>
       </div>
       <div className="court-stage-inner">
+        {counsel && <>
+          {(["A", "B"] as const).map(slot => <div key={slot} className={`court-spotlight court-spotlight--${slot}`} aria-hidden="true"/>)}
+          {spotlight && <div className={`court-turn-marker court-turn-marker--${spotlight}`} aria-hidden="true"><span>{spotlightLabel}</span></div>}
+          <div className="court-jury-stand" aria-hidden="true">{isSceneTheme(theme.id) && <PixelJuryBox theme={theme.id}/>}</div>
+        </>}
         <div className="court-characters">
           <PixelCharacter theme={theme} slot="A" displayName={players.A.name} characterId={players.A.characterId} state={turn?.activeSlot === "A" ? "speaking" : turn?.activeSlot ? "listening" : "idle"} paused={paused}/>
           <JudgeCharacter theme={theme} state={judgeState ?? (turn?.complete ? "thinking" : "speaking")} interactive={Boolean(judgeState)} paused={paused}/>

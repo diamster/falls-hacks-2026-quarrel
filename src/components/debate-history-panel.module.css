@@ -108,3 +108,15 @@
   .heading { flex-wrap: wrap; }
   .toggle { width: 100%; }
 }
+
+/* Fill mode (game screen): the panel takes its grid cell's height and only the log scrolls. */
+.panel[data-fill="true"] { position: static; height: 100%; max-height: none; }
+.panel[data-fill="true"] .messages { max-height: none; }
+.panel[data-fill="true"] .heading { padding: .7rem 1rem; }
+.panel[data-fill="true"] .heading h2 { font-size: 1.35rem; }
+.panel[data-fill="true"] .footnote { padding: .5rem 1rem; font-size: .72rem; }
+@media (max-width: 900px) {
+  .panel[data-fill="true"] .toggle { display: none; }
+  .panel[data-fill="true"] .body[data-expanded="false"] { display: flex; }
+  .panel[data-fill="true"] .messages { max-height: none; min-height: 0; }
+}
