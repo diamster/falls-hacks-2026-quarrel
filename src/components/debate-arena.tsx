@@ -1,4 +1,4 @@
-import { BackgroundAsset, BenchAsset } from "@/themes/assets";
+import { BackgroundAsset, BenchAsset, CharacterAsset } from "@/themes/assets";
 import type { CharacterPosition, ThemeConfig } from "@/themes";
 import { PixelCharacter, JudgeCharacter } from "./pixel-character";
 import { PixelIcon } from "./ui";
@@ -6,18 +6,25 @@ import type { CharacterState } from "@/lib/preview";
 
 export type ArenaParticipants = Record<CharacterPosition, { name: string; characterId?: string | null }>;
 
+interface CounselMember { assetId: string; label: string; name: string; role: string; working?: boolean; status?: string }
+/** Optional lawyers and jury placed in the scene itself (the debate screen); the lobby and preview omit them. */
+export interface ArenaCounsel { lawyers: Record<CharacterPosition, CounselMember>; jury: CounselMember }
+
 /** Two speaking positions can later receive round-specific team representatives. */
-export function DebateArena({ theme, players, dialogue, dialogueKey, paused, roomCode, turn, judgeState, judgeLabel }: {
+export function DebateArena({ theme, players, dialogue, dialogueKey, paused, roomCode, turn, judgeState, judgeLabel, counsel, showTimer = true }: {
   theme: ThemeConfig; players: ArenaParticipants; dialogue: string; dialogueKey: string;
   paused: boolean; roomCode?: string;
   turn?: { label: string; time: string; activeSlot: CharacterPosition | null; complete: boolean };
   judgeState?: CharacterState; judgeLabel?: string;
+  counsel?: ArenaCounsel;
+  /** Hide the scene's own timer when the page already shows the players' clocks. */
+  showTimer?: boolean;
 }) {
-  return <section className="courtroom pixel-panel debate-arena" aria-label={theme.environmentLabel} data-theme={theme.id} data-paused={paused} data-room={roomCode ? "joined" : "none"}>
+  return <section className="courtroom pixel-panel debate-arena" aria-label={theme.environmentLabel} data-theme={theme.id} data-paused={paused} data-room={roomCode ? "joined" : "none"} data-counsel={Boolean(counsel)}>
     <BackgroundAsset assetId={theme.assets.background} className="jungle-backdrop"/>
     <div className="court-vignette"/>
     <div className="court-room-code"><span className="status-dot"/> ROOM <strong>{roomCode ?? "— — —"}</strong><span className="demo-tag">PRIVATE</span></div>
-    <div className="turn-timer" aria-label={turn ? `${turn.label}: ${turn.time}` : "Waiting room: debate not started"}><PixelIcon name="clock"/><strong>{turn?.time ?? "LOBBY"}</strong><span>{turn?.label ?? "TAKE YOUR SEAT"}</span></div>
+    {showTimer && <div className="turn-timer" aria-label={turn ? `${turn.label}: ${turn.time}` : "Waiting room: debate not started"}><PixelIcon name="clock"/><strong>{turn?.time ?? "LOBBY"}</strong><span>{turn?.label ?? "TAKE YOUR SEAT"}</span></div>}
     {/* The stage holds the bubble and the cast; in the full-screen lobby it is placed between the panels
         and its inner box scales as one unit to the space available. */}
     <div className="court-stage">
@@ -31,6 +38,17 @@ export function DebateArena({ theme, players, dialogue, dialogueKey, paused, roo
           <JudgeCharacter theme={theme} state={judgeState ?? (turn?.complete ? "thinking" : "speaking")} interactive={Boolean(judgeState)} paused={paused}/>
           <PixelCharacter theme={theme} slot="B" displayName={players.B.name} characterId={players.B.characterId} state={turn?.activeSlot === "B" ? "speaking" : turn?.activeSlot ? "listening" : "idle"} paused={paused}/>
         </div>
+        {counsel && <>
+          {(["A", "B"] as const).map(slot => { const lawyer = counsel.lawyers[slot]; return <figure key={slot} className={`court-counsel court-counsel--${slot}`} data-working={Boolean(lawyer.working)}>
+            {lawyer.working && <span className="court-counsel-busy">{lawyer.status ?? "Working…"}</span>}
+            <CharacterAsset assetId={lawyer.assetId} label={lawyer.label}/>
+            <figcaption><strong>{lawyer.name}</strong><span>{lawyer.role}</span></figcaption>
+          </figure>; })}
+          <figure className="court-jury" data-working={Boolean(counsel.jury.working)}>
+            <CharacterAsset assetId={counsel.jury.assetId} label={counsel.jury.label}/>
+            <figcaption><strong>{counsel.jury.name}</strong><span>{counsel.jury.status ?? counsel.jury.role}</span></figcaption>
+          </figure>
+        </>}
         <div className="judge-bench"><BenchAsset assetId={theme.assets.bench}/><div className="bench-label">{theme.judge.displayName.toUpperCase()}<span>{theme.ui.benchCaption}</span></div></div>
       </div>
     </div>

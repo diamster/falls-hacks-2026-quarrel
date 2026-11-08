@@ -87,6 +87,38 @@ describe("Stage 5 independent positions and plan", () => {
   });
 });
 
+describe("Debate screen layout (UI rework)", () => {
+  it("puts both lawyers and the jury in the scene, shows one set of clocks and names the subtopic once", () => {
+    const view = render(<LawyerDebateView {...props()}/>);
+    const scene = view.container.querySelector(".debate-arena")!;
+    expect(scene).toHaveAttribute("data-counsel", "true");
+    const theme = getTheme("courtroom");
+    expect(within(scene as HTMLElement).getByText(theme.lawyers.A.displayName)).toBeInTheDocument();
+    expect(within(scene as HTMLElement).getByText(theme.lawyers.B.displayName)).toBeInTheDocument();
+    expect(within(scene as HTMLElement).getByText(theme.jury.displayName)).toBeInTheDocument();
+    expect(scene.querySelector(".turn-timer")).toBeNull();
+    expect(screen.getAllByRole("timer")).toHaveLength(2);
+    const question = debate().subtopics[0].question;
+    expect(screen.getAllByText(question)).toHaveLength(1);
+    expect(screen.getByRole("heading", { level: 1, name: "Should lectures be mandatory?" })).toBeInTheDocument();
+    expect(within(scene as HTMLElement).getByText(/the floor is yours/)).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "Subtopics" }).querySelector('[aria-current="step"]')).toHaveTextContent("1");
+  });
+
+  it("shows which lawyer is working while both clocks are paused, and the jury deliberating", () => {
+    const pending = { id: "pending-b", label: "S1-P2L2M1", kind: "argument" as const, subtopic: 1, slot: "B" as const, text: null, source: "ai" as const, status: "pending" as const, createdAt: "2030-01-01T00:00:05Z", completedAt: null };
+    const view = render(<LawyerDebateView {...props(room(active({ state: "lawyering", activeSlot: "B", history: [pending] })))}/>);
+    const scene = view.container.querySelector(".debate-arena") as HTMLElement;
+    expect(within(scene).getByText("Preparing the presentation…")).toBeInTheDocument();
+    expect(scene.querySelector('.court-counsel--B[data-working="true"]')).not.toBeNull();
+    expect(scene.querySelector('.court-counsel--A[data-working="false"]')).not.toBeNull();
+    expect(within(scene).getByText(/is presenting .*point\. Both clocks are paused\./)).toBeInTheDocument();
+    view.rerender(<LawyerDebateView {...props(room(active({ phase: "jury", state: null, activeSlot: null, currentSubtopic: null })))}/>);
+    expect(within(scene).getByText("Deliberating…")).toBeInTheDocument();
+    expect(scene.querySelector('.court-jury[data-working="true"]')).not.toBeNull();
+  });
+});
+
 describe("Stage 5 lawyer debate interface", () => {
   it("shows both server clock estimates and marks only the composing player's clock running", () => {
     const initial = props(); const view = render(<LawyerDebateView {...initial}/>);

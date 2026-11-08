@@ -34,3 +34,6 @@
 @media(max-width:600px){.theme-shell[data-theme].stage-five-shell .header-inner nav{gap:12px;font-size:11px}.theme-shell[data-theme].stage-five-shell .header-inner nav :is(a,button){font-size:11px}.theme-shell[data-theme].stage-five-shell .header-inner{gap:10px}}
 @media(max-width:380px){.theme-shell[data-theme].stage-five-shell .brand{font-size:19px}.theme-shell[data-theme].stage-five-shell .brand-mark{width:26px;height:26px}}
 .theme-shell[data-theme].theme-shell--fit .lobby-column [aria-labelledby="lawyer-setup-title"]>div:not(.section-heading)>div:last-child {flex-direction:column;align-items:stretch;gap:12px;}
+/* Started debate: tighter page padding so clocks, scene and input share the first screen. */
+.stage-five-debate {padding-top:16px;}
+@media(max-width:600px){.stage-five-debate{padding-top:12px;}}

@@ -104,13 +104,15 @@ describe("Public Stage 5 application", () => {
   it("opens the Settings popup from a running debate without leaving the courtroom", async () => {
     const user = userEvent.setup(); mockedClient.mockReturnValue(client(room(active(), { themeLocked: true }))); render(tree());
     const dialog = document.querySelector("dialog.settings-dialog")!;
-    await user.click(screen.getByRole("button", { name: /Settings · Courtroom/ }));
+    expect(screen.queryByRole("button", { name: /Settings · Courtroom|Display settings/ })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /Settings/ })).toHaveLength(1);
+    await user.click(screen.getByRole("button", { name: "Settings" }));
     expect(dialog).toHaveAttribute("open");
     for (const card of within(dialog as HTMLElement).getAllByRole("radio")) expect(card).toBeDisabled();
     expect(within(dialog as HTMLElement).getByText(/The debate has started, so its theme is locked/)).toBeInTheDocument();
     await user.click(within(dialog as HTMLElement).getByRole("button", { name: "Close settings" }));
     expect(dialog).not.toHaveAttribute("open");
-    await user.click(screen.getByRole("button", { name: "Display settings" }));
+    await user.click(screen.getByRole("button", { name: "Settings" }));
     expect(dialog).toHaveAttribute("open");
     expect(screen.getByRole("timer", { name: "Player A: 47 seconds remaining" })).toBeInTheDocument();
   });
