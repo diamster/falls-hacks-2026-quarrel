@@ -28,7 +28,34 @@ assert.ok(publishableKey.startsWith('sb_publishable_') || (() => {
 })(), 'Only a publishable or legacy anon key may run this authorization test.');
 
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
+const speechEnabled = process.env.QUARREL_TEST_SPEECH === 'true';
 const clients = [];
+async function speechRequest(player, snapshot, message, token = message.speechToken) {
+  return fetch(`${origin}/api/rooms/lawyer/speech`, {
+    method: 'POST', signal: AbortSignal.timeout(25000),
+    headers: { origin, 'content-type': 'application/json', 'x-quarrel-room-id': snapshot.id,
+      cookie: [...player.jar].map(([key, value]) => `${key}=${value}`).join('; ') },
+    body: JSON.stringify({ debateId: snapshot.lawyer.debateId, messageId: message.id, speechToken: token }),
+  });
+}
+async function checkSpeech(player, snapshot, message) {
+  assert.ok(message.speechToken, 'Only a persisted public message receives speech authorization.');
+  const before = await success(player, '/session');
+  const response = await speechRequest(player, snapshot, message);
+  assert.equal(response.status, 200, 'Live TTS must succeed for this explicitly opted-in check.');
+  assert.equal(response.headers.get('content-type'), 'audio/wav');
+  assert.equal(response.headers.get('cache-control'), 'no-store, private');
+  const bytes = Buffer.from(await response.arrayBuffer());
+  assert.equal(bytes.subarray(0, 4).toString(), 'RIFF'); assert.ok(bytes.length > 44);
+  const after = await success(player, '/session');
+  assert.equal(after.lawyer.turnDeadline, before.lawyer.turnDeadline, 'Speech cannot reset or extend a writing deadline.');
+  assert.equal(after.lawyer.activeSlot, before.lawyer.activeSlot, 'Speech cannot hand off a turn.');
+  assert.deepEqual(publicHistory(after), publicHistory(before), 'Speech cannot rewrite the saved transcript.');
+  const replay = await speechRequest(player, snapshot, message);
+  assert.equal(replay.status, 200);
+  assert.deepEqual(Buffer.from(await replay.arrayBuffer()), bytes, 'Replay reuses generated audio; it never requests another argument rewrite.');
+  return after;
+}
 const peerEvents = [], outsiderEvents = [];
 const sources = new Map();
 let fixtureId, checks = 0;
@@ -105,7 +132,7 @@ async function receivedVersion(version) {
   assert.ok(peerEvents.some(event => event.debate_version >= version), 'The peer must receive the actual completed action’s Realtime version.');
 }
 function publicHistory(room) {
-  return room.lawyer.history.map(({ rawText: _ownOnly, ...message }) => message);
+  return room.lawyer.history.map(({ rawText: _ownOnly, speechToken: _personalPlaybackAuthorization, ...message }) => message);
 }
 function recordSource(id, source) {
   assert.ok(['ai', 'demo', 'fallback'].includes(source), 'Each completed generation identifies its actual source.');
@@ -271,6 +298,14 @@ try {
   assert.deepEqual(publicHistory(peerA), publicHistory(room));
   await receivedVersion(await currentVersion(directA));
   pass('Concurrent official retries create one labelled presentation; both clocks stop during processing, B starts on completion, and the actual Realtime version reaches B without A’s rawText.');
+  if (speechEnabled) {
+    await checkSpeech(a, room, completedA);
+    assert.equal((await speechRequest(b, peerA, completedA)).status, 403, 'A speech authorization cannot be used by B.');
+    assert.equal((await speechRequest(c, room, completedA)).status, 403, 'An outsider cannot use a participant speech authorization.');
+    assert.ok(room.lawyer.consultations.every(item => !Object.hasOwn(item, 'speechToken')), 'Private consultations never receive public playback authorization.');
+    pass('Lawyer A speech returns WAV; replay is cached, recipient authorization is isolated, and playback requests do not mutate clocks or text.');
+  }
+
 
   const secondMessage = { text: 'Library staffing is limited, so I favor improving daytime support before expanding hours.', revision, subtopic: 1, requestKey: randomUUID() };
   const sentB = await success(b, '/lawyer/argument', secondMessage, scope());
@@ -291,6 +326,11 @@ try {
   assert.deepEqual(publicHistory(recovered[0]), publicHistory(recovered[1]));
   assert.equal(recovered[0].lawyer.consultations[0].id, consultRow.id); assert.deepEqual(recovered[1].lawyer.consultations, []);
   pass('B’s lawyer hands the clock back to A; refresh restores synchronized deadlines/public history and only the owner’s private consultation.');
+  if (speechEnabled) {
+    await checkSpeech(b, room, completedB);
+    pass('Lawyer B speech returns saved-message audio without delaying the opposing player or exposing the private consultation.');
+  }
+
 
   // Let actual server deadlines elapse. For the first 38 seconds deliberately
   // omit A's heartbeat, while B stays connected. Reads must not refresh liveness
@@ -320,7 +360,17 @@ try {
       seenSubtopics.add(d.currentSubtopic);
       const current = d.subtopics.find(item => item.ordinal === d.currentSubtopic);
       assert.ok(Date.parse(d.turnDeadline) - Date.parse(d.serverNow) <= current.secondsPerPlayer * 1000);
-      assert.ok(Date.parse(d.turnDeadline) - Date.parse(d.serverNow) > current.secondsPerPlayer * 1000 - 5_000, 'The next subtopic starts with a complete clock after the summary display.');
+      const intro = d.history.find(item => item.kind === 'announcement' && item.label === `S${d.currentSubtopic}-START` && item.status === 'complete');
+      assert.ok(intro?.completedAt, 'The subtopic has its canonical saved introduction timestamp.');
+      const allocatedMs = current.secondsPerPlayer * 1000;
+      assert.equal(current.remainingMsA, allocatedMs); assert.equal(current.remainingMsB, allocatedMs);
+      // The server stores the original start time in the introduction, even if
+      // compilation/network load delays this poll. Compare that persisted clock
+      // allocation, not a promise that a browser observes it within five seconds.
+      assert.equal(Date.parse(d.turnDeadline) - Date.parse(intro.completedAt), allocatedMs, 'The next subtopic receives its complete writing clock from the authoritative start.');
+      const previousSummary = d.history.find(item => item.kind === 'judge_summary' && item.subtopic === d.currentSubtopic - 1 && item.status === 'complete');
+      assert.ok(previousSummary?.completedAt);
+      assert.equal(Date.parse(intro.completedAt) - Date.parse(previousSummary.completedAt), 4_000, 'The summary display interval precedes the full writing allocation.');
     }
     if (!expiredTurnRejected && d.phase === 'subtopic' && d.state === 'composing') {
       const expiredSlot = d.remainingMsA === 0 ? 'A' : d.remainingMsB === 0 ? 'B' : null;
@@ -392,12 +442,12 @@ try {
   assert.equal(outsiderEvents.length, 0, 'An authenticated outsider must receive no room events.');
   assert.equal(await success(c, '/session'), null);
   const finalRefresh = await success(browser(a.jar), '/session');
-  assert.deepEqual(finalRefresh.lawyer.history, finalA.lawyer.history);
+  assert.deepEqual(publicHistory(finalRefresh), publicHistory(finalA));
   assert.deepEqual(finalRefresh.lawyer.verdict, finalA.lawyer.verdict);
   assert.deepEqual(finalRefresh.lawyer.consultations, finalA.lawyer.consultations);
   if (unavailableDemoJury) assert.deepEqual(finalRefresh.lawyer.juryStatus, finalA.lawyer.juryStatus);
   const repeatedAdvance = await success(a, '/lawyer/advance', { revision }, scope());
-  assert.deepEqual(repeatedAdvance.lawyer.history, finalA.lawyer.history);
+  assert.deepEqual(publicHistory(repeatedAdvance), publicHistory(finalA));
   if (unavailableDemoJury) {
     assert.equal(repeatedAdvance.lawyer.verdict, null);
     assert.deepEqual(repeatedAdvance.lawyer.juryStatus, finalA.lawyer.juryStatus, 'Refresh/advance cannot reserve duplicate unavailable jury work.');
@@ -408,6 +458,32 @@ try {
   pass(unavailableDemoJury
     ? 'Every subtopic has one saved summary; Stage 6A demo jury stays retryable with one pending canonical job and no verdict. Refresh and advance preserve it without private transcript or Realtime leaks.'
     : 'Every subtopic has one saved summary and the jury has one shared structured verdict; refresh and retries preserve the final record without private transcript or Realtime leaks.');
+  if (speechEnabled) {
+    await checkSpeech(b, finalB, summaries[0]);
+    pass('The judge speaks a saved canonical summary without regenerating it.');
+    if (versionTwo && !unavailableDemoJury) {
+      const debateId = finalA.lawyer.debateId;
+      const ack = await a.request('/lawyer/acknowledge', { debateId });
+      assert.equal(ack.status, 200); assert.ok(ack.data.results.acknowledgements.A); assert.equal(ack.data.results.acknowledgements.B, null);
+      const sameAck = await a.request('/lawyer/acknowledge', { debateId });
+      assert.equal(sameAck.data.results.acknowledgements.A, ack.data.results.acknowledgements.A);
+      const acknowledged = await success(b, '/session');
+      assert.equal(acknowledged.lawyer.acknowledgements.A, ack.data.results.acknowledgements.A);
+      assert.deepEqual(acknowledged.lawyer.verdict, finalB.lawyer.verdict, 'Acknowledgement does not change the verdict.');
+      const waiting = await success(a, '/lawyer/rematch', { debateId }, scope());
+      assert.equal(waiting.lawyer.debateId, debateId); assert.ok(waiting.lawyer.rematch.A); assert.equal(waiting.lawyer.rematch.B, null);
+      const rematched = await success(b, '/lawyer/rematch', { debateId }, scope());
+      assert.notEqual(rematched.lawyer.debateId, debateId); assert.equal(rematched.lawyer.phase, 'setup');
+      assert.equal(rematched.themeId, finalB.themeId); assert.equal(rematched.lawyer.positionA, null); assert.equal(rematched.lawyer.positionB, null);
+      assert.deepEqual(rematched.lawyer.history, []); assert.deepEqual(rematched.lawyer.consultations, []);
+      assert.equal((await success(a, '/session')).lawyer.debateId, rematched.lawyer.debateId);
+      const archive = await b.request(`/lawyer/history?debateId=${debateId}`);
+      assert.equal(archive.status, 200); assert.deepEqual(archive.data.history.verdict, finalB.lawyer.verdict);
+      assert.ok(archive.data.history.history.every(item => !Object.hasOwn(item, 'rawText')));
+      assert.equal(JSON.stringify(archive.data.history).includes(privateMarker), false);
+      pass('Live saved results acknowledge independently, mutual rematch creates a separate synchronized setup, and earlier public results survive.');
+    }
+  }
   const counts = Object.fromEntries(['ai', 'demo', 'fallback'].map(source => [source, [...sources.values()].filter(value => value === source).length]));
   console.log(`All ${checks} Stage 5 HTTP/Realtime checks passed. Completed generation sources: ${JSON.stringify(counts)}. Demo/fallback responses do not establish live Gemini success.`);
 } finally {

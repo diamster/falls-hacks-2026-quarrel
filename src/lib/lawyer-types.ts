@@ -28,6 +28,9 @@ export interface JuryVerdict {
 }
 /** Public presentations only. rawText is supplied only to the owning member. */
 export interface LawyerPublicMessage {
+  /** Short-lived, participant-bound proof of this saved public speech text. */
+  speechToken?: string;
+  speechBlocked?: boolean;
   id: string;
   label: string;
   kind: "argument" | "judge_summary" | "announcement" | "jury_verdict";
@@ -125,4 +128,24 @@ export function lawyerClockSeconds(debate: LawyerDebateSnapshot, slot: PlayerSlo
   const remaining = debate.state === "composing" && debate.activeSlot === slot && debate.turnDeadline
     ? Math.min(stored, Date.parse(debate.turnDeadline) - serverTimeMs) : stored;
   return Number.isFinite(remaining) ? Math.max(0, Math.ceil(remaining / 1000)) : 0;
+}
+
+/** Completed, participant-authorized archive; no raw drafts or consultations. */
+export interface LawyerResultRecord {
+  id: string;
+  roomId: string;
+  topic: string;
+  themeId: string;
+  totalSeconds: number;
+  startedAt: string;
+  completedAt: string;
+  verdict: JuryVerdict;
+  acknowledgements: { A: string | null; B: string | null };
+  rematch: { A: string | null; B: string | null; nextDebateId: string | null };
+}
+export interface LawyerResultDetail extends LawyerResultRecord {
+  positions: { A: string; B: string };
+  players: { slot: PlayerSlot; name: string }[];
+  history: LawyerPublicMessage[];
+  subtopics: (PlannedSubtopic & { summary: string | null })[];
 }

@@ -1,3 +1,18 @@
+# Stage 6B — current authorization
+
+Work only on `quarrel-stage-6b`, based on completed Stage 6A (`fb09640`). The user's Stage 6B brief supersedes historical stage/branch restrictions below. Preserve the existing UI, artwork, server clocks and evaluation rules; no Stage 6C/7 redesign.
+
+- Integrate Stage 6A results, independent acknowledgement, mutual rematches and participant-only archives using the existing API contracts.
+- Speech is optional presentation only. Speak canonical saved public lawyer presentations and judge announcements/summaries; never original drafts or private consultations. Text submission/turn transitions never wait for audio.
+- Gemini text uses `GEMINI_API_KEY` only. Gemini speech uses `GEMINI_TTS_API_KEY` only, server-side. Never silently use the text key for speech; never print, commit or expose credentials.
+- Keep speech playback centralized, scoped to stable saved message IDs, locally controlled and cancellable. Browser speech is an optional fallback; no microphone, calls or recordings.
+- Preserve all four themes and centralize role voice preferences. Reuse compatible pieces of `origin/texttospeech` selectively; never merge or push that branch.
+- Personal audio preferences stay in browser storage. Do not change clocks, shared game rules, RLS or database schema to implement playback. Any new Cloud migration still needs explicit review and approval.
+- Run the existing automated checks and inspect actual browser playback/layout. Distinguish mocked tests, provider-generated audio and real browser playback; do not claim cross-browser support without testing.
+- Push only this stage branch. Do not merge into `main` or modify older branches.
+
+---
+
 # Stage 6A — current authorization
 
 Work only on `quarrel-stage-6a`, based on completed Stage 5 plus the invite flow at `01ec1c7`. The user's Stage 6A brief supersedes conflicting historical branch and evidence rules below. Backend only: no UI, CSS, animation, Stage 6B or 6C changes.

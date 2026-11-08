@@ -16,6 +16,7 @@ const room = (debate: DebateSnapshot, overrides: Partial<RoomSnapshot> = {}): Ro
 function client(current: RoomSnapshot) {
   return { room: current, loading: false, pending: false, judgePending: false, offline: false, live: true, error: "", remainingSeconds: 45,
     lawyerClocks: { A: 60, B: 60 }, proposeLawyerTopic: vi.fn().mockResolvedValue(true), setOwnPosition: vi.fn().mockResolvedValue(true), planDebate: vi.fn().mockResolvedValue(true), startLawyerDebate: vi.fn().mockResolvedValue(true), sendToLawyer: vi.fn().mockResolvedValue(true), consultLawyer: vi.fn().mockResolvedValue(true),
+    listResults: vi.fn().mockResolvedValue([]), getResult: vi.fn().mockResolvedValue(null), acknowledgeResults: vi.fn().mockResolvedValue(null), requestRematch: vi.fn().mockResolvedValue(true), retryJury: vi.fn().mockResolvedValue(true),
     askJudge: vi.fn().mockResolvedValue(true),
     leaveRoom: vi.fn().mockResolvedValue(true),
     refresh: vi.fn().mockResolvedValue(true), create: vi.fn().mockResolvedValue(true), join: vi.fn().mockResolvedValue(true), setTheme: vi.fn().mockResolvedValue(true), setReady: vi.fn().mockResolvedValue(true), proposeTopic: vi.fn().mockResolvedValue(true), approveTopic: vi.fn().mockResolvedValue(true), requestChanges: vi.fn().mockResolvedValue(true), startDebate: vi.fn().mockResolvedValue(true), submitArgument: vi.fn().mockResolvedValue(true),

@@ -86,3 +86,25 @@
 @media(max-width:1100px){.layout{grid-template-columns:minmax(0,1fr) 310px;gap:15px}.main :global(.character--lion){left:1%}.main :global(.character--zebra){right:1%}.main :global(.character){width:120px}.main :global(.character--lemur){width:145px}.main :global(.judge-bench){width:185px}.cast{gap:9px}.counsel{padding:9px;gap:8px}.counsel>svg{width:50px;height:60px}.counsel strong{font-size:19px}}
 @media(max-width:900px){.layout{grid-template-columns:1fr}.layout>aside{grid-row:1}.main :global(.character--lion){left:5%}.main :global(.character--zebra){right:5%}.main :global(.character){width:155px}.main :global(.character--lemur){width:170px}.main :global(.judge-bench){width:220px}.main :global(.judge-speech){max-width:58%}.counsel>svg{width:65px;height:76px}}
 @media(max-width:600px){.setupBody,.composerBody{padding:16px;gap:18px}.positions{grid-template-columns:1fr}.startRow{flex-direction:column;align-items:stretch;gap:13px}.startRow>button{width:100%}.subtopicHeading{flex-direction:column;gap:10px}.subtopicHeading h2{font-size:26px}.subtopicHeading>a{display:flex;gap:12px}.clocks{gap:10px}.clock{grid-template-columns:1fr;padding:10px}.clock>strong{grid-column:auto;grid-row:auto;font-size:34px}.clock>span{font-size:11px}.clock>small{font-size:9px}.main :global(.debate-arena){min-height:460px}.main :global(.character--lion){left:4px}.main :global(.character--zebra){right:4px}.main :global(.character){width:100px}.main :global(.character--lemur){width:138px}.main :global(.judge-bench){width:154px}.main :global(.judge-speech){max-width:83%}.cast{grid-template-columns:1fr}.juryCast{grid-column:auto}.counsel>svg{width:60px;height:70px}.counsel strong{font-size:22px}.composerBody :global(.pixel-button){justify-self:stretch;min-height:44px}.duration select{max-width:none;font-size:16px}.form>:global(.pixel-button){justify-self:stretch}.privateComposer>summary{padding:16px}.privateComposer>summary>span{font-size:22px}.verdict{padding:18px}.verdict h2{font-size:26px}.processing{padding:16px}}
+.historyFilter {display:grid;gap:6px;font-size:12px;font-weight:700;margin-bottom:15px;}
+.historyFilter select {width:100%;min-width:0;max-width:100%;min-height:44px;padding:9px;background:var(--paper);color:var(--ink);border:1px solid var(--line);font:inherit;}
+.resultActions {display:grid;gap:20px;border-top:1px solid var(--line);padding-top:20px;margin-top:20px;}
+.resultActions>div {display:grid;gap:10px;}
+.resultActions button {justify-self:start;}
+.resultActions p,.recovery p {font-size:13px;line-height:1.7;}
+.recovery {padding:20px;display:grid;gap:12px;}
+.recovery button {justify-self:start;}
+.archive {padding:18px;margin-top:24px;}
+.archiveBody {margin-top:18px;display:grid;gap:15px;}
+.archiveBody h2 {font-family:var(--font-pixel);font-size:28px;}
+.archiveBody>.verdict {padding:0;}
+.archiveBody .transcript {margin-top:15px;}
+.lawyerBubble {font-size:12px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere;border:2px solid var(--ink);background:var(--paper);padding:9px;margin-top:8px;max-height:160px;overflow-y:auto;}
+.counsel[data-speaking="true"] {align-items:flex-start;border-color:var(--theme-secondary);}
+.counsel[data-speaking="true"] :global(.sprite-body) {animation:counsel-speaking .32s steps(2,end) infinite;transform-origin:center bottom;}
+@keyframes counsel-speaking {50%{transform:translateY(-2px) rotate(1deg)}}
+.counsel[data-paused="true"] :global(.sprite-body) {animation:none;}
+@media(prefers-reduced-motion:reduce){.counsel :global(.sprite-body){animation:none!important;}}
+
+/* Long user-written topics and names must wrap in saved results on narrow screens. */
+.verdict { min-width: 0; overflow-wrap: anywhere; }

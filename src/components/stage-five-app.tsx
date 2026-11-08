@@ -12,6 +12,8 @@ import { LeaveRoomControl, RoomEntry, RoomLobby } from "./room-controls";
 import { PixelButton, PixelIcon, SectionHeading } from "./ui";
 import { useDisplayPreferences } from "./display-preferences";
 import "./stage-five-app.css";
+import { CharacterSpeechProvider } from "./character-speech";
+import { PreviousDebates } from "./lawyer-results";
 
 export function StageFiveApp() {
   const session = useRoomClient();
@@ -58,15 +60,15 @@ export function StageFiveApp() {
     : debate.phase === "planning" ? "The planner is preparing balanced questions for both positions."
     : !debate.topic ? "Host, set the topic and writing time. Each participant then writes their own position."
     : "Review each other's positions and confirm readiness. Your lawyers will help present your arguments.";
-  return <div className="theme-shell stage-five-shell" data-theme={theme.id} style={themeStyles(theme)}>
+  return <CharacterSpeechProvider roomId={room?.id ?? null} debateId={debate?.debateId ?? null} themeId={theme.id} messages={debate?.history ?? []}><div className="theme-shell stage-five-shell" data-theme={theme.id} style={themeStyles(theme)}>
     <a className="skip-link" href="#courtroom-content">Skip to courtroom</a>
-    <header className="site-header"><div className="header-inner"><a className="brand" href="/?start=1" onClick={home} aria-label="quarrel.io home"><span className="brand-mark"><PixelIcon name="chat"/></span><span>quarrel<span className="brand-dot">.</span>io</span></a><div className="header-divider"/><span className="brand-caption">YOUR VOICE.<br/>A FAIR HEARING.</span><nav aria-label="Main navigation"><a href="/?start=1" onClick={home}>{room ? "Back to start" : "Start"}</a><a href="/settings">Settings</a><a href="/preview">Art preview ↗</a></nav><div className="stage-badge">STAGE 05 <span>/ YOUR LAWYER SIDEKICK</span></div></div></header>
+    <header className="site-header"><div className="header-inner"><a className="brand" href="/?start=1" onClick={home} aria-label="quarrel.io home"><span className="brand-mark"><PixelIcon name="chat"/></span><span>quarrel<span className="brand-dot">.</span>io</span></a><div className="header-divider"/><span className="brand-caption">YOUR VOICE.<br/>A FAIR HEARING.</span><nav aria-label="Main navigation"><a href="/?start=1" onClick={home}>{room ? "Back to start" : "Start"}</a><a href="/settings">Settings</a><a href="/preview">Art preview ↗</a></nav><div className="stage-badge">STAGE 6B <span>/ YOUR LAWYER SIDEKICK</span></div></div></header>
     <main id="courtroom-content" className="app-shell" tabIndex={-1}>
       <section className="topic-bar" aria-label="Debate topic"><div className="topic-icon"><PixelIcon name="gavel"/></div><div className="topic-copy"><p className="eyebrow">{theme.ui.benchCaption} · {complete ? "COMPLETE" : started ? "THE AGREED QUESTION" : "TWO-PLAYER LOBBY"}</p><h1>{debate?.topic ?? "Every great debate starts with hello."}</h1></div><div className="round-placeholder"><span className="eyebrow">{started ? "YOUR VOICE. YOUR LAWYER." : "PRIVATE ROOM"}</span><span>{debate?.topic ? `${debate.totalSeconds / 60} minutes of writing time each` : "No account needed."}</span></div></section>
       {session.error && <div className="room-error" role="alert"><p>{session.error}</p>{session.offline && <button onClick={() => { void session.refresh(); }}>Try reconnecting</button>}</div>}
       <div className="stage-five-setting"><span><strong>{theme.displayName}</strong> · {theme.judge.displayName}{room?.themeLocked ? " · Theme locked" : ""}</span><a href="/settings">{room?.themeLocked ? "Display settings" : "Preview themes in Settings"}<PixelIcon name="arrow"/></a></div>
       {room && debate && !started && <LawyerSetup room={room} pending={session.pending} offline={session.offline} onPropose={session.proposeLawyerTopic} onPosition={session.setOwnPosition} onPlan={regenerate => session.planDebate(debate.revision, regenerate)} onStart={session.startLawyerDebate}/>}
-      {room && debate && started ? <><LawyerDebateView room={room} theme={theme} clocks={session.lawyerClocks} pending={session.pending} offline={session.offline} paused={paused} onSend={session.sendToLawyer} onConsult={session.consultLawyer}/><details className="stage-five-room-details"><summary>Room connection, invitation and leave controls</summary><RoomLobby room={room} theme={theme} pending={session.pending} offline={session.offline} live={session.live} onReady={ready => { void session.setReady(ready); }} onLeave={() => leave(room.id)}/></details></> : <>
+      {room && debate && started ? <><LawyerDebateView room={room} theme={theme} clocks={session.lawyerClocks} pending={session.pending} offline={session.offline} paused={paused} onSend={session.sendToLawyer} onConsult={session.consultLawyer} onAcknowledge={session.acknowledgeResults} onRematch={session.requestRematch} onRetryJury={session.retryJury}/><details className="stage-five-room-details"><summary>Room connection, invitation and leave controls</summary><RoomLobby room={room} theme={theme} pending={session.pending} offline={session.offline} live={session.live} onReady={ready => { void session.setReady(ready); }} onLeave={() => leave(room.id)}/></details></> : <>
         {room && !debate && <section className="pixel-panel stage-five-legacy"><h2>Earlier debate record</h2><p>This room keeps its original theme and history. Create a new room to use personal lawyers, subtopics and the jury.</p></section>}
         <div className="court-layout room-court-layout"><div className="arena-column"><DebateArena theme={theme} players={players} dialogue={lobbyDialogue} dialogueKey={`${theme.id}:${room?.id}:${debate?.phase}:${debate?.planReady}`} judgeState="speaking" judgeLabel="YOUR NEUTRAL JUDGE" paused={paused} roomCode={room?.code}/></div>
           {session.loading || view === "auto" ? <section className="room-panel pixel-panel room-loading" role="status">Checking for your seat…</section>
@@ -76,7 +78,8 @@ export function StageFiveApp() {
         {room && !debate && room.debate && <DebateHistory debate={room.debate} players={room.players} you={room.you}/>}
         {room && !debate && room.judge?.enabled && <JudgeConversation room={room} theme={theme}/>}
       </>}
-      <footer className="site-footer"><span>{theme.ui.tagline}</span><span>Digital Sidekick · Stage 5 · Personal lawyers, neutral judge and jury</span></footer>
+      <PreviousDebates listResults={session.listResults} getResult={session.getResult}/>
+      <footer className="site-footer"><span>{theme.ui.tagline}</span><span>Digital Sidekick · Stage 6B · Personal lawyers, neutral judge and jury</span></footer>
     </main>
-  </div>;
+  </div></CharacterSpeechProvider>;
 }

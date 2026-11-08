@@ -4,6 +4,7 @@ import { useRoomClient } from "@/lib/room-client";
 import { getTheme } from "@/themes";
 import { themeStyles } from "@/themes/styles";
 import { useDisplayPreferences } from "./display-preferences";
+import { AudioPreferences } from "./audio-preferences";
 import { ThemeSelector } from "./theme-selector";
 import { PixelButton, PixelIcon, SectionHeading } from "./ui";
 import "./settings-page.css";
@@ -42,6 +43,7 @@ export function SettingsPage() {
           <p className="settings-save-note" role="status">{storageAvailable ? "Display preferences are saved in this browser." : "Browser storage is unavailable. Your preferences still apply in this tab, but may reset when you leave."}</p>
         </div>
       </section>
+      <AudioPreferences/>
       <a className="settings-return pixel-button pixel-button--cream" href={roomHref}>{room ? "Return to your room" : "Return to start"}<PixelIcon name="arrow"/></a>
     </main>
   </div>;

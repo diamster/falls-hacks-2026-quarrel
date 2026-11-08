@@ -937,3 +937,40 @@ describe("Stage 4 synchronized judge client", () => {
     view.unmount();expect(await view.result.current.askJudge("Unmounted",2,0,"24c35381-6e66-4f0f-9185-6b586e417057")).toBe(false);
   });
 });
+
+describe("Stage 6B result and rematch client", () => {
+  it("loads and acknowledges archives without replacing the live room snapshot", async () => {
+    current = room(); const originalId = current.id; const record = { id: "archived-debate", topic: "A previous topic" };
+    fetchMock.mockImplementation(async (path, options) => {
+      if (String(path).includes("/lawyer/history")) return json({ history: String(path).includes("debateId=") ? record : [record] });
+      if (path === "/api/rooms/lawyer/acknowledge") { expect(JSON.parse(options!.body as string)).toEqual({ debateId: "archived-debate" }); return json({ results: record }); }
+      return json(response(current));
+    });
+    const view = renderHook(() => useRoomClient()); await waitFor(() => expect(view.result.current.live).toBe(true));
+    await act(async () => { expect(await view.result.current.listResults()).toEqual([record]); expect(await view.result.current.listResults(originalId)).toEqual([record]); expect(await view.result.current.getResult("archived-debate")).toEqual(record); expect(await view.result.current.acknowledgeResults("archived-debate")).toEqual(record); });
+    expect(view.result.current.room?.id).toBe(originalId); expect(view.result.current.live).toBe(true);
+    expect(fetchMock.mock.calls.some(([path]) => path === `/api/rooms/lawyer/history?roomId=${originalId}`)).toBe(true);
+    view.unmount(); expect(await view.result.current.listResults()).toBeNull();
+  });
+
+  it("sends only debate IDs for rematch/retry and recovers stale debates without repeating mutations", async () => {
+    current = room(); const view = renderHook(() => useRoomClient()); await waitFor(() => expect(view.result.current.live).toBe(true));
+    fetchMock.mockImplementation(async (path, options) => {
+      if (path === "/api/rooms/lawyer/rematch" || path === "/api/rooms/lawyer/retry") {
+        expect(JSON.parse(options!.body as string)).toEqual({ debateId: "old-debate" }); expect(options!.headers).toEqual({ "Content-Type": "application/json", "x-quarrel-room-id": current!.id });
+        if (path.endsWith("rematch")) return json({ error: "This debate has changed", code: "STALE_DEBATE" }, 409);
+      }
+      return json(response(current));
+    });
+    await act(async () => { expect(await view.result.current.requestRematch("old-debate")).toBe(false); });
+    await act(async () => { expect(await view.result.current.retryJury("old-debate")).toBe(true); });
+    expect(fetchMock.mock.calls.filter(([path]) => path === "/api/rooms/lawyer/rematch")).toHaveLength(1);
+  });
+
+  it("keeps the current room after an unauthorized archive read", async () => {
+    current = room(); const view = renderHook(() => useRoomClient()); await waitFor(() => expect(view.result.current.live).toBe(true));
+    fetchMock.mockImplementation(async path => String(path).includes("/lawyer/history") ? json({ error: "Result unavailable" }, 404) : json(response(current)));
+    await act(async () => { expect(await view.result.current.getResult("someone-elses-debate")).toBeNull(); });
+    expect(view.result.current.error).toBe("Result unavailable"); expect(view.result.current.room?.id).toBe(current.id);
+  });
+});

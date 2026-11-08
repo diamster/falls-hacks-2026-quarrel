@@ -2,10 +2,12 @@ import { createClient, type Session, type SupabaseClient } from "@supabase/supab
 import { after, NextRequest, NextResponse } from "next/server";
 import { getTheme, isThemeId } from "@/themes";
 import { judgeServerConfig, processJudgeWork, processLawyerWork } from "./judge-worker";
+import { cachedSpeech, SpeechError } from "./speech-provider";
+import { attachSpeechReceipts, verifySpeechReceipt } from "./speech-receipts";
 
 type Action = "session" | "create" | "join" | "leave" | "ready" | "heartbeat" | "theme" | "propose" | "approve" | "changes" | "start" | "argument" | "advance" | "judge"
   | "lawyerTopic" | "lawyerPosition" | "lawyerPlan" | "lawyerStart" | "lawyerSend" | "lawyerConsult" | "lawyerAdvance"
-  | "resultsHistory" | "resultsAcknowledge" | "rematch" | "juryRetry";
+  | "resultsHistory" | "resultsAcknowledge" | "rematch" | "juryRetry" | "speech";
 const roomIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const cookieNames = ["quarrel_access", "quarrel_refresh"] as const;
 const messages: Record<string, [number, string]> = {
@@ -126,19 +128,19 @@ async function identity(request: NextRequest, url: string, key: string, allowNew
     // Verify with Auth; never authorize by decoding a browser-supplied identifier.
     const { data, error } = await auth.auth.getUser(access);
     checkAuthAvailability(error);
-    if (!error && data.user) return { db: client(url, key, access, roomId), access, session: null };
+    if (!error && data.user) return { db: client(url, key, access, roomId), access, session: null, userId: data.user.id };
   }
   if (refresh) {
     const { data, error } = await auth.auth.refreshSession({ refresh_token: refresh });
     checkAuthAvailability(error);
-    if (!error && data.session) return { db: client(url, key, data.session.access_token, roomId), access: data.session.access_token, session: data.session };
+    if (!error && data.session) return { db: client(url, key, data.session.access_token, roomId), access: data.session.access_token, session: data.session, userId: data.session.user?.id };
     throw new RoomError(401, messages.UNAUTHORIZED[1]);
   }
   if (access) throw new RoomError(401, messages.UNAUTHORIZED[1]);
   if (!allowNew) return null;
   const { data, error } = await auth.auth.signInAnonymously();
   if (error || !data.session) throw new RoomError(503, "Could not create a player session. Check that anonymous sign-ins are enabled, or try again shortly.");
-  return { db: client(url, key, data.session.access_token, roomId), access: data.session.access_token, session: data.session };
+  return { db: client(url, key, data.session.access_token, roomId), access: data.session.access_token, session: data.session, userId: data.session.user?.id };
 }
 
 async function input(request: NextRequest, action: Action): Promise<Record<string, unknown>> {
@@ -162,7 +164,7 @@ async function input(request: NextRequest, action: Action): Promise<Record<strin
   // The character limits below count Unicode code points, not UTF-8 bytes.
   // Keep enough bounded transport space for a full multilingual lawyer message.
   const lawyerTextAction = ["lawyerTopic", "lawyerPosition", "lawyerSend", "lawyerConsult"].includes(action);
-  const maxBytes = action === "argument" ? 16_384 : action === "judge" || lawyerTextAction ? 8192 : action === "propose" ? 4096 : action === "changes" ? 2048 : 1024;
+  const maxBytes = action === "speech" ? 32_768 : action === "argument" ? 16_384 : action === "judge" || lawyerTextAction ? 8192 : action === "propose" ? 4096 : action === "changes" ? 2048 : 1024;
   if (Number(request.headers.get("content-length")) > maxBytes) throw new RoomError(413, "The room request is too large.");
   const reader = request.body?.getReader();
   const chunks: Uint8Array[] = [];
@@ -196,6 +198,7 @@ async function input(request: NextRequest, action: Action): Promise<Record<strin
     lawyerPlan: ["revision", "regenerate"], lawyerStart: ["revision", "planGeneration"], lawyerAdvance: ["revision"],
     lawyerSend: ["text", "revision", "subtopic", "requestKey"], lawyerConsult: ["text", "revision", "subtopic", "requestKey"],
     resultsAcknowledge: ["debateId"], rematch: ["debateId"], juryRetry: ["debateId"],
+    speech: ["debateId", "messageId", "speechToken"],
   }[action];
   if (!body || Array.isArray(body) || typeof body !== "object" || Object.keys(body).some(key => !fields.includes(key))) {
     throw new RoomError(400, "Unexpected room request fields. Player identity comes from your session.");
@@ -211,8 +214,10 @@ async function input(request: NextRequest, action: Action): Promise<Record<strin
   if (action === "ready" && typeof body.ready !== "boolean") failDatabase("INVALID_READY");
   if (action === "leave" && (typeof body.roomId !== "string" || !roomIdPattern.test(body.roomId))) failDatabase("INVALID_ROOM");
   if (action === "theme" && !isThemeId(body.themeId)) failDatabase("INVALID_THEME");
-  if (["resultsAcknowledge", "rematch", "juryRetry"].includes(action)
+  if (["resultsAcknowledge", "rematch", "juryRetry", "speech"].includes(action)
     && (typeof body.debateId !== "string" || !roomIdPattern.test(body.debateId))) failDatabase("INVALID_DEBATE");
+  if (action === "speech" && (typeof body.messageId !== "string" || !roomIdPattern.test(body.messageId)
+    || typeof body.speechToken !== "string" || body.speechToken.length > 32_000)) throw new RoomError(400, "Choose a saved public message for speech.");
   if (["propose", "approve", "changes", "start", "argument", "advance", "judge"].includes(action) || action.startsWith("lawyer")) {
     if (!Number.isInteger(body.revision) || (body.revision as number) < 0 || (body.revision as number) > 2_147_483_646) failDatabase("INVALID_REVISION");
   }
@@ -266,7 +271,7 @@ export async function roomRoute(request: NextRequest, action: Action) {
     const archiveAction = action === "resultsHistory" || action === "resultsAcknowledge";
     const expectedRoomId = action === "session" || archiveAction ? null : request.headers.get("x-quarrel-room-id");
     if (expectedRoomId !== null && !roomIdPattern.test(expectedRoomId)) failDatabase("INVALID_ROOM");
-    if ((action === "rematch" || action === "juryRetry") && expectedRoomId === null) failDatabase("INVALID_ROOM");
+    if ((action === "rematch" || action === "juryRetry" || action === "speech") && expectedRoomId === null) failDatabase("INVALID_ROOM");
     const { url, key } = config();
     // This is a stale-view guard, never identity: Postgres checks it under the
     // same room lock as the authorized mutation. GET recovers the current room.
@@ -276,9 +281,16 @@ export async function roomRoute(request: NextRequest, action: Action) {
       response = NextResponse.json({ room: null });
     } else {
       renewed = auth.session;
+      if (action === "speech") {
+        if (!auth.userId) failDatabase("UNAUTHORIZED");
+        const receipt = verifySpeechReceipt(body.speechToken as string, { userId: auth.userId, roomId: expectedRoomId!, debateId: body.debateId as string, messageId: body.messageId as string });
+        // No room read, worker or transition: playback cannot advance clocks.
+        const wav = await cachedSpeech(receipt);
+        response = new NextResponse(new Uint8Array(wav), { headers: { "Content-Type": "audio/wav", "X-Content-Type-Options": "nosniff" } });
+      } else {
       const judge = judgeServerConfig();
       if (["start", "judge", "lawyerPlan", "juryRetry"].includes(action) && !judge.serverKey) failDatabase("JUDGE_NOT_CONFIGURED");
-      const rpc: Record<Action, [string, Record<string, unknown>]> = {
+      const rpc: Record<Exclude<Action, "speech">, [string, Record<string, unknown>]> = {
         session: ["get_quarrel_room", {}],
         create: ["create_quarrel_lawyer_room_v2", { p_name: body.name }],
         join: ["join_quarrel_room", { p_name: body.name, p_code: body.code }],
@@ -327,12 +339,17 @@ export async function roomRoute(request: NextRequest, action: Action) {
         // response lifecycle; a database claim prevents refreshes duplicating it.
         after(() => processJudgeWork(auth.db, judge.serverKey).then(() => {}));
       }
+      if (auth.userId) {
+        if (archiveAction && Array.isArray(data?.history)) data = { ...data, history: attachSpeechReceipts(data.history, { userId: auth.userId, roomId: data.roomId, debateId: data.id, themeId: data.themeId }) };
+        else if (Array.isArray(data?.lawyer?.history) && data.lawyer.debateId) data = { ...data, lawyer: { ...data.lawyer, history: attachSpeechReceipts(data.lawyer.history, { userId: auth.userId, roomId: data.id, debateId: data.lawyer.debateId, themeId: data.themeId }) } };
+      }
       response = NextResponse.json(action === "resultsHistory" ? { history: data } : action === "resultsAcknowledge" ? { results: data }
         : { room: data, ...(data ? { realtime: { url, key, accessToken: auth.access } } : {}) });
+      }
     }
   } catch (error) {
-    const known = error instanceof RoomError;
-    response = NextResponse.json({ error: known ? error.message : "The room service is temporarily unavailable. Please try again.", ...(known && error.code ? { code: error.code } : {}) }, { status: known ? error.status : 503 });
+    const known = error instanceof RoomError || error instanceof SpeechError;
+    response = NextResponse.json({ error: known ? error.message : "The room service is temporarily unavailable. Please try again.", ...(known && error.code ? { code: error.code } : {}), ...(action === "speech" ? { fallbackAllowed: error instanceof SpeechError && error.fallbackAllowed } : {}) }, { status: known ? error.status : 503 });
     if (known && error.status === 401) {
       for (const name of cookieNames) response.cookies.set(name, "", { httpOnly: true, sameSite: "strict", secure: request.nextUrl.protocol === "https:", path: "/api/rooms", maxAge: 0 });
     }
