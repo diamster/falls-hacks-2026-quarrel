@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { themes, neutralityPolicy } from "@/themes";
 import { CharacterAsset } from "@/themes/assets";
 import { SidekickSprite, sidekickAssetIds } from "@/themes/art/sidekicks";
+import { isPixelAssetId, mascotAssetId, mascotLawyers } from "@/themes/art/pixel/roster";
 
 describe("Stage 5 original lawyer and jury artwork", () => {
   it("registers exactly two lawyers and one jury asset per theme with stable, distinct IDs", () => {
@@ -10,7 +11,13 @@ describe("Stage 5 original lawyer and jury artwork", () => {
     expect(configured).toHaveLength(12);
     expect(new Set(configured.map(character => character.id)).size).toBe(12);
     expect(new Set(configured.map(character => character.assetId)).size).toBe(12);
-    expect(configured.map(character => character.assetId).sort()).toEqual([...sidekickAssetIds].sort());
+    // Lawyers are the pixel mascots (approved D1 amendment); juries keep their original sidekick art.
+    for (const character of configured) expect(sidekickAssetIds.includes(character.assetId) || isPixelAssetId(character.assetId)).toBe(true);
+    for (const theme of themes) {
+      expect(theme.lawyers.A.assetId).toBe(mascotAssetId(mascotLawyers.A, theme.id));
+      expect(theme.lawyers.B.assetId).toBe(mascotAssetId(mascotLawyers.B, theme.id));
+      expect(sidekickAssetIds).toContain(theme.jury.assetId);
+    }
     for (const character of configured) {
       expect(character.displayName).not.toBe("");
       expect(character.description).not.toBe("");

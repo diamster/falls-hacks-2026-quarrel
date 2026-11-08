@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRoomClient } from "@/lib/room-client";
 import { getTheme } from "@/themes";
 import { themeStyles } from "@/themes/styles";
+import { isLawyerArtStyle } from "@/themes/art/pixel/roster";
 import { useDisplayPreferences } from "./display-preferences";
 import { ThemeSelector } from "./theme-selector";
 import { PixelButton, PixelIcon, SectionHeading } from "./ui";
@@ -43,6 +44,7 @@ export function SettingsPanel({ session }: { session: RoomSession }) {
         <label className="settings-checkbox"><input type="checkbox" checked={preferences.reducedMotion} onChange={event => updatePreferences({ reducedMotion: event.target.checked })}/><span><strong>Reduce motion</strong><small>Remove movement and transitions.</small></span></label>
         <label className="settings-checkbox"><input type="checkbox" checked={preferences.ignoreDeviceMotion} disabled={preferences.reducedMotion} onChange={event => updatePreferences({ ignoreDeviceMotion: event.target.checked })}/><span><strong>Play animations even if my device asks for less motion</strong><small>{deviceReducesMotion ? "Your device is set to reduce motion, so animations are off unless you tick this." : "Your device doesn’t ask for reduced motion right now."}</small></span></label>
         <label className="settings-select" htmlFor="display-text-size"><span><strong>Dialogue and transcript text size</strong><small>Make messages and writing areas easier to read.</small></span><select id="display-text-size" value={preferences.textSize} onChange={event => updatePreferences({ textSize: event.target.value === "large" ? "large" : "standard" })}><option value="standard">Standard</option><option value="large">Large</option></select></label>
+        <label className="settings-select" htmlFor="display-lawyer-art"><span><strong>Lawyer artwork</strong><small>Choose how lawyers look on your screen. Your opponent and the AI are not affected.</small></span><select id="display-lawyer-art" value={preferences.lawyerArt} onChange={event => updatePreferences({ lawyerArt: isLawyerArtStyle(event.target.value) ? event.target.value : "theme" })}><option value="theme">Theme default</option><option value="classic">Original drawings</option><option value="remaster">Pixel remaster</option><option value="mascot">Mascots</option></select></label>
         <p className="settings-save-note" role="status">{storageAvailable ? "Display preferences are saved in this browser." : "Browser storage is unavailable. Your preferences still apply in this tab, but may reset when you leave."}</p>
       </div>
     </section>

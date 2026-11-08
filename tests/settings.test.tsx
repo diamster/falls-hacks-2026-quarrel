@@ -103,21 +103,23 @@ describe("Personal display preferences", () => {
     await user.click(screen.getByRole("checkbox", { name: /Pause artwork animations/ }));
     await user.click(screen.getByRole("checkbox", { name: /Reduce motion/ }));
     await user.selectOptions(screen.getByRole("combobox", { name: /Dialogue and transcript text size/ }), "large");
+    await user.selectOptions(screen.getByRole("combobox", { name: /Lawyer artwork/ }), "remaster");
     const wrapper = view.container.querySelector(".display-preferences");
     expect(wrapper).toHaveAttribute("data-pause-animations", "true");
     expect(wrapper).toHaveAttribute("data-reduced-motion", "true");
     expect(wrapper).toHaveAttribute("data-text-size", "large");
-    expect(JSON.parse(window.localStorage.getItem(displayPreferencesKey)!)).toEqual({ pauseAnimations: true, reducedMotion: true, ignoreDeviceMotion: false, textSize: "large" });
+    expect(JSON.parse(window.localStorage.getItem(displayPreferencesKey)!)).toEqual({ pauseAnimations: true, reducedMotion: true, ignoreDeviceMotion: false, textSize: "large", lawyerArt: "remaster" });
     expect(session.setTheme).not.toHaveBeenCalled();
     view.unmount(); showSettings();
     expect(screen.getByRole("checkbox", { name: /Pause artwork animations/ })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: /Reduce motion/ })).toBeChecked();
     expect(screen.getByRole("combobox", { name: /Dialogue and transcript text size/ })).toHaveValue("large");
+    expect(screen.getByRole("combobox", { name: /Lawyer artwork/ })).toHaveValue("remaster");
     await user.selectOptions(screen.getByRole("combobox", { name: /Dialogue and transcript text size/ }), "standard");
     expect(JSON.parse(window.localStorage.getItem(displayPreferencesKey)!).textSize).toBe("standard");
   });
 
-  it.each(["not json", "null", "[]", '"large"', '{"pauseAnimations":"yes","reducedMotion":1,"textSize":"giant","themeId":"superhero"}'])("ignores invalid saved preferences %s", saved => {
+  it.each(["not json", "null", "[]", '"large"', '{"pauseAnimations":"yes","reducedMotion":1,"textSize":"giant","themeId":"superhero","lawyerArt":"pixel"}'])("ignores invalid saved preferences %s", saved => {
     window.localStorage.setItem(displayPreferencesKey, saved); const view = showSettings();
     expect(view.container.querySelector(".display-preferences")).toHaveAttribute("data-text-size", "standard");
     expect(screen.getByRole("checkbox", { name: /Pause artwork animations/ })).not.toBeChecked();
