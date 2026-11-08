@@ -19,11 +19,11 @@ beforeEach(() => { playback.status = "idle"; playback.active = null; });
 describe("Stage 6B canonical speech presentation", () => {
   it.each(["lawyerA", "lawyerB"] as const)("animates %s only during actual playback without changing composing controls", role => {
     playback.status = "speaking"; playback.active = { roomId: room.id, debateId: debate.debateId!, themeId: "courtroom", messageId: "saved-message", role, text: "These exact words were saved publicly." };
-    const handlers = props(); const view = render(<LawyerDebateView {...handlers}/>);
-    expect(view.container.querySelectorAll('[data-speaking="true"]')).toHaveLength(1); expect(screen.getByText("These exact words were saved publicly.")).toBeInTheDocument();
+    const handlers = props(); handlers.room = { ...room, lawyer: { ...debate, history: [{ id: "saved-message", label: "S1-PUBLIC", kind: "argument", slot: role === "lawyerA" ? "A" : "B", subtopic: 1, text: playback.active.text, status: "complete", source: "ai", createdAt: debate.serverNow, completedAt: debate.serverNow }] } }; const view = render(<LawyerDebateView {...handlers}/>);
+    expect(view.container.querySelectorAll('[data-speaking="true"]')).toHaveLength(1); expect(screen.getByRole("region", { name: "Current public message" })).toHaveTextContent("These exact words were saved publicly.");
     expect(screen.getByRole("textbox", { name: /Argument for my lawyer/ })).toBeEnabled(); expect(screen.getByRole("timer", { name: "Player A: 45 seconds remaining" })).toHaveTextContent("00:45");
     expect(handlers.onSend).not.toHaveBeenCalled(); expect(handlers.onConsult).not.toHaveBeenCalled();
-    playback.status = "paused"; view.rerender(<LawyerDebateView {...handlers}/>); expect(view.container.querySelectorAll('[data-speaking="true"]')).toHaveLength(0); expect(screen.queryByText("These exact words were saved publicly.")).not.toBeInTheDocument();
+    playback.status = "paused"; view.rerender(<LawyerDebateView {...handlers}/>); expect(view.container.querySelectorAll('[data-speaking="true"]')).toHaveLength(0); expect(screen.getByRole("region", { name: "Current public message" })).toHaveTextContent("These exact words were saved publicly.");
   });
   it("uses the saved judge message in the bubble and returns to listening on stop", () => {
     playback.status = "speaking"; playback.active = { roomId: room.id, debateId: debate.debateId!, themeId: "courtroom", messageId: "saved-summary", role: "judge", text: "Both participants discussed attendance fairly." };

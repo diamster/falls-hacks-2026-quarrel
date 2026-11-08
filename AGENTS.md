@@ -1,4 +1,12 @@
-# Stage 6B — current authorization
+# Courtroom dialogue improvements — current authorization
+
+Work on `quarrel-courtroom-dialogue`, from completed Stage 6B on main. Make only the requested shorter subtopic summaries, modest desktop arena enlargement, role-based player/lawyer positioning and public dialogue box. Preserve jury verdict detail, saved text/TTS, clocks, private consultations, history, themes and results. No Cloud schema changes.
+
+The latest user explicitly overrides earlier test instructions: run only targeted checks and TypeScript/build if practical. **No full suite, coverage, screenshot/visual regression tests, saved screenshots or long multiplayer/database integration tests.** Do not merge unrelated UI branches or main.
+
+---
+
+# Stage 6B — historical authorization
 
 Work only on `quarrel-stage-6b`, based on completed Stage 6A (`fb09640`). The user's Stage 6B brief supersedes historical stage/branch restrictions below. Preserve the existing UI, artwork, server clocks and evaluation rules; no Stage 6C/7 redesign.
 

@@ -1,0 +1,38 @@
+/* The role layout is shared by every theme; character identities stay in config. */
+.counselScene {container-type:inline-size;}
+.witness {position:absolute;top:16%;width:18%;max-width:108px;z-index:3;}
+.witness[data-slot="A"] {left:3%;}
+.witness[data-slot="B"] {right:3%;}
+@container(min-width:700px){.witness{top:10%;}}
+.stand {position:absolute;inset:auto -5px 23px;height:25px;border:3px solid var(--ink);background:var(--theme-panel);box-shadow:inset 0 5px 0 var(--theme-accent),3px 4px 0 #0003;}
+.counselScene .witness :global(.character) {position:relative;inset:auto;width:100%;}
+.counselScene .witness :global(.character-sprite) {position:relative;height:auto;aspect-ratio:1;}
+.counselScene .witness :global(.character-sprite)>svg {width:100%;height:100%;}
+.counselScene .witness :global(.character-nameplate) {max-width:100%;min-height:35px;margin-top:3px;padding:4px 3px;box-shadow:2px 2px 0 #0003;}
+.counselScene .witness :global(.character-nameplate strong) {max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:clamp(12px,2.2cqw,17px);}
+.counselScene .witness :global(.character-nameplate>span:last-child) {font-size:7px;letter-spacing:.4px;}
+.lawyer {position:absolute;bottom:10%;width:22%;max-width:160px;z-index:3;}
+.lawyer[data-slot="A"] {left:9%;}
+.lawyer[data-slot="B"] {right:9%;}
+.lawyerSprite {width:100%;aspect-ratio:5/6;display:flex;align-items:flex-end;justify-content:center;filter:drop-shadow(2px 3px 0 #0003);}
+.lawyerSprite>svg {display:block;width:100%;height:100%;image-rendering:pixelated;}
+.lawyerName {margin-top:3px;padding:5px 3px;border:2px solid var(--ink);background:var(--paper);text-align:center;box-shadow:2px 2px 0 #0003;}
+.lawyerName strong {display:block;font-family:var(--font-pixel);font-size:clamp(15px,2.8cqw,22px);line-height:1.1;overflow-wrap:anywhere;}
+.lawyerName span {display:block;font-size:clamp(6px,1.2cqw,8px);line-height:1.5;text-transform:uppercase;letter-spacing:.6px;}
+.counselScene :global(.court-characters>.character--lemur) {left:50%;bottom:24%;width:27%;max-width:170px;}
+.counselScene :global(.character--lemur .character-sprite) {height:auto;aspect-ratio:170/191;}
+.counselScene :global(.character--lemur .character-sprite)>svg {width:100%;height:100%;}
+.counselScene.counselScene :global(.judge-bench) {bottom:13%;width:34%;max-width:229px;}
+.counselScene.counselScene :global(.bench-label) {font-size:clamp(12px,3cqw,23px);}
+.counselScene :global(.bench-label span) {font-size:clamp(3px,.7cqw,6px);letter-spacing:.7px;}
+.counselScene.counselScene :global(.judge-speech) {width:48%;max-width:340px;max-height:125px;overflow-y:auto;top:16%;min-height:0;padding:10px;}
+.counselScene :global(.speech-heading) {white-space:normal;flex-wrap:wrap;gap:4px;}
+.counselScene :global(.speech-text) {font-size:clamp(13px,2.6cqw,18px);}
+.lawyer[data-state="idle"] :global(.sprite-body) {animation:counsel-idle var(--theme-idle-duration,2.6s) steps(2,end) infinite;transform-origin:center bottom;}
+.lawyer[data-state="speaking"] :global(.sprite-body) {animation:counsel-speaking var(--theme-speaking-duration,.4s) steps(2,end) infinite;transform-origin:center bottom;}
+.lawyer[data-state="thinking"] :global(.sprite-body) {animation:counsel-thinking 1s steps(2,end) infinite;transform-origin:center bottom;}
+.lawyer[data-paused="true"] :global(.sprite-body) {animation:none;}
+@keyframes counsel-idle {50%{transform:translateY(-1px)}}
+@keyframes counsel-speaking {50%{transform:translateY(-2px) rotate(1deg)}}
+@keyframes counsel-thinking {50%{transform:translateY(-2px)}}
+@media(prefers-reduced-motion:reduce){.lawyer :global(.sprite-body){animation:none!important;}}

@@ -108,3 +108,10 @@
 
 /* Long user-written topics and names must wrap in saved results on narrow screens. */
 .verdict { min-width: 0; overflow-wrap: anywhere; }
+
+/* Use spare wide-desktop margins for the scene, not larger inputs/navigation. */
+@media(min-width:1440px){.main :global(.debate-arena){aspect-ratio:972/510;}}
+@media(min-width:1600px){
+  .layout {width:calc(100% + 128px);margin-inline:-64px;}
+  .main>:not(:global(.debate-arena)):not([aria-label="Current courtroom dialogue"]) {width:100%;max-width:972px;justify-self:center;}
+}

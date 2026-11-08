@@ -214,7 +214,7 @@ export async function generateLawyerResult(job: LawyerJob): Promise<LawyerResult
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: lawyerInstructions(job) }] },
           contents: [{ role: "user", parts: [{ text: context }] }],
-          generationConfig: { candidateCount: 1, maxOutputTokens: job.kind === "jury" ? 4096 : 2000, responseMimeType: "application/json", responseJsonSchema: lawyerResponseSchema(job),
+          generationConfig: { candidateCount: 1, maxOutputTokens: job.kind === "jury" ? 4096 : job.kind === "summary" ? 512 : 2000, responseMimeType: "application/json", responseJsonSchema: lawyerResponseSchema(job),
             ...(selectedModel === "gemini-3.6-flash" ? { thinkingConfig: { thinkingLevel: "MINIMAL", includeThoughts: false } } : {}) },
         }),
       });

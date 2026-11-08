@@ -14,6 +14,7 @@ import { useDisplayPreferences } from "./display-preferences";
 import "./stage-five-app.css";
 import { CharacterSpeechProvider } from "./character-speech";
 import { PreviousDebates } from "./lawyer-results";
+import { CourtroomDialogue } from "./courtroom-dialogue";
 
 export function StageFiveApp() {
   const session = useRoomClient();
@@ -70,7 +71,7 @@ export function StageFiveApp() {
       {room && debate && !started && <LawyerSetup room={room} pending={session.pending} offline={session.offline} onPropose={session.proposeLawyerTopic} onPosition={session.setOwnPosition} onPlan={regenerate => session.planDebate(debate.revision, regenerate)} onStart={session.startLawyerDebate}/>}
       {room && debate && started ? <><LawyerDebateView room={room} theme={theme} clocks={session.lawyerClocks} pending={session.pending} offline={session.offline} paused={paused} onSend={session.sendToLawyer} onConsult={session.consultLawyer} onAcknowledge={session.acknowledgeResults} onRematch={session.requestRematch} onRetryJury={session.retryJury}/><details className="stage-five-room-details"><summary>Room connection, invitation and leave controls</summary><RoomLobby room={room} theme={theme} pending={session.pending} offline={session.offline} live={session.live} onReady={ready => { void session.setReady(ready); }} onLeave={() => leave(room.id)}/></details></> : <>
         {room && !debate && <section className="pixel-panel stage-five-legacy"><h2>Earlier debate record</h2><p>This room keeps its original theme and history. Create a new room to use personal lawyers, subtopics and the jury.</p></section>}
-        <div className="court-layout room-court-layout"><div className="arena-column"><DebateArena theme={theme} players={players} dialogue={lobbyDialogue} dialogueKey={`${theme.id}:${room?.id}:${debate?.phase}:${debate?.planReady}`} judgeState="speaking" judgeLabel="YOUR NEUTRAL JUDGE" paused={paused} roomCode={room?.code}/></div>
+        <div className="court-layout room-court-layout"><div className="arena-column"><DebateArena counsel={{ A: "idle", B: "idle" }} theme={theme} players={players} dialogue={lobbyDialogue} dialogueKey={`${theme.id}:${room?.id}:${debate?.phase}:${debate?.planReady}`} judgeState="speaking" judgeLabel="YOUR NEUTRAL JUDGE" paused={paused} roomCode={room?.code}/><CourtroomDialogue theme={theme}/></div>
           {session.loading || view === "auto" ? <section className="room-panel pixel-panel room-loading" role="status">Checking for your seat…</section>
             : room ? <RoomLobby key={room.id} room={room} theme={theme} readOnly={!debate} pending={session.pending} offline={session.offline} live={session.live} onReady={ready => { void session.setReady(ready); }} onLeave={() => leave(room.id)}/>
             : session.room ? <section className="room-panel pixel-panel"><SectionHeading eyebrow="WELCOME BACK">Your room is saved</SectionHeading><div className="room-panel-body saved-room-body"><p>Your previous room and record remain available.</p><strong>{session.room.code}</strong><PixelButton onClick={() => navigate("room")}>Resume room<PixelIcon name="arrow"/></PixelButton><LeaveRoomControl pending={session.pending} offline={session.offline} onLeave={() => leave(session.room!.id)} label="Create or join another room"/></div></section>

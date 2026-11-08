@@ -1,0 +1,10 @@
+.dialogue {min-width:0;border:3px solid var(--ink);background:var(--paper);box-shadow:4px 4px 0 var(--line);}
+.heading {padding:12px 18px 10px;border-bottom:2px solid var(--line);border-left:6px solid var(--theme-secondary);background:var(--theme-panel);}
+.heading strong {display:block;margin-top:4px;font-family:var(--font-pixel);font-size:26px;line-height:1.15;overflow-wrap:anywhere;}
+.dialogue[data-speaker="B"] .heading {border-left-color:var(--theme-accent);}
+.dialogue[data-speaker="judge"] .heading,.dialogue[data-speaker="jury"] .heading {border-left-color:var(--ink);}
+.text {max-height:14rem;min-height:5rem;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding:15px 18px;}
+.text p {font-family:var(--font-sans);font-size:15px;line-height:1.75;white-space:pre-wrap;overflow-wrap:anywhere;margin:0;}
+.text:focus-visible {outline:3px solid var(--theme-secondary);outline-offset:-5px;}
+.dialogue>small {display:block;padding:0 18px 12px;font-size:11px;color:var(--muted);}
+@media(max-width:600px){.heading{padding:11px 13px}.heading strong{font-size:23px}.text{padding:13px;max-height:12rem}.text p{font-size:14px}}

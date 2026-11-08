@@ -1,5 +1,7 @@
 # quarrel.io — Stage 6B: Speaking sidekicks and results
 
+The focused `quarrel-courtroom-dialogue` branch adds shorter subtopic summaries, lawyer-led arena positioning and a public dialogue box. See [the changes and quick-check report](docs/courtroom-dialogue-improvements.md). It preserves Stage 6B debate rules and jury verdict detail.
+
 A private two-player debate game built with Next.js App Router, TypeScript, Tailwind, Supabase Cloud and Gemini. Players independently choose their positions and present arguments through personal AI lawyers. A neutral judge summarizes each subtopic; the jury evaluates the saved public record.
 
 Stage 6B is developed on **`quarrel-stage-6b`**, based on completed Stage 6A (`fb09640`). It adds optional lawyer/judge speech, local audio preferences, richer saved results, independent acknowledgement, mutual rematches and earlier-results navigation. It preserves the existing courtroom design, debate clocks and evaluation rules. No Stage 6C or Stage 7 is included.

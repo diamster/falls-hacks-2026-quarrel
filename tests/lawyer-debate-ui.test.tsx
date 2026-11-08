@@ -145,7 +145,7 @@ describe("Stage 5 lawyer debate interface", () => {
     view.rerender(<LawyerDebateView {...current} room={room(active({ state: "consulting", activeSlot: null, consultations: [pending] }))}/>);
     expect(screen.getByRole("textbox", { name: /Argument for my lawyer/ })).toHaveValue("Keep this official argument draft.");
     expect(screen.getByRole("textbox", { name: /Argument for my lawyer/ })).toBeDisabled();
-    expect(screen.getByText("Private consultation…")).toBeInTheDocument();
+    expect(screen.getByText("A private lawyer consultation is in progress. Both clocks are paused; the same player resumes afterward.")).toBeInTheDocument();
     view.rerender(<LawyerDebateView {...current} room={room(active({ consultations: [{ ...pending, status: "complete", text: "A private suggestion" }] }))}/>);
     expect(screen.getByRole("textbox", { name: /Argument for my lawyer/ })).toHaveValue("Keep this official argument draft.");
     expect(screen.getByRole("textbox", { name: /Argument for my lawyer/ })).toBeEnabled();
