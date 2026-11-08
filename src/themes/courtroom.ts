@@ -1,4 +1,6 @@
 import { neutralityPolicy, type ThemeConfig } from "./types";
+import { mascots } from "./art/pixel/mascots";
+import { mascotAssetId, mascotLawyers } from "./art/pixel/roster";
 
 export const courtroom: ThemeConfig = {
   id: "courtroom", displayName: "Courtroom", description: "Warm wood, balanced scales and a composed judge. A classic setting for opposing views.",
@@ -10,8 +12,8 @@ export const courtroom: ThemeConfig = {
     "courtroom-advocate-b": { id: "courtroom-advocate-b", displayName: "Casey", roleLabel: "Advocate", assetId: "courtroom-advocate-b", description: "Casey, a courtroom advocate wearing a burgundy suit" },
   } },
   lawyers: {
-    A: { id: "courtroom-emery", displayName: "Emery", assetId: "courtroom-lawyer-a", description: "Emery, an original silver-haired lawyer in a navy suit carrying a gold-edged lawbook", personality: "Composed, articulate and supportive. A respectful advocate who organizes their player's reasoning.", dialogueStyle: "Plain professional legal phrasing, with no invented precedent, claims or evidence." },
-    B: { id: "courtroom-sage", displayName: "Sage", assetId: "courtroom-lawyer-b", description: "Sage, an original curly-haired lawyer in a plum blazer holding a cream document folder", personality: "Thoughtful, assured and meticulous. A patient advocate who states the player's own position precisely.", dialogueStyle: "Clear, courteous sentences that preserve qualification and distinguish a claim from its support." },
+    A: { id: "courtroom-emery", displayName: "Emery", assetId: mascotAssetId(mascotLawyers.A, "courtroom"), description: `Emery, drawn as ${mascots[mascotLawyers.A].description}`, personality: "Composed, articulate and supportive. A respectful advocate who organizes their player's reasoning.", dialogueStyle: "Plain professional legal phrasing, with no invented precedent, claims or evidence." },
+    B: { id: "courtroom-sage", displayName: "Sage", assetId: mascotAssetId(mascotLawyers.B, "courtroom"), description: `Sage, drawn as ${mascots[mascotLawyers.B].description}`, personality: "Thoughtful, assured and meticulous. A patient advocate who states the player's own position precisely.", dialogueStyle: "Clear, courteous sentences that preserve qualification and distinguish a claim from its support." },
   },
   jury: { id: "courtroom-civic-jury", displayName: "The Civic Jury", assetId: "courtroom-jury", description: "Three original human jurors in varied formal attire seated behind an oak jury rail", personality: "Professional, attentive and impartial. The panel considers the complete public record using consistent criteria.", dialogueStyle: "Composed judicial language, concise reasons for both sides and explicit recognition of uncertainty.", neutralityPolicy },
   judge: { id: "courtroom-rowan", displayName: "Judge Rowan", assetId: "courtroom-rowan", description: "Judge Rowan, a composed human judge in a judicial robe", personality: "Serious, composed, professional and authoritative. Patient, impartial and respectful toward both speakers.", dialogueStyle: "Clear formal language and judicial terminology, with reasons stated plainly rather than theatrically.", neutralityPolicy,

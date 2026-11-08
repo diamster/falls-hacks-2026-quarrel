@@ -2,6 +2,9 @@ import type { ComponentType } from "react";
 import { CharacterSprite, JungleBackdrop, JudgeBench } from "@/components/pixel-art";
 import { ThemeBackground, ThemeBench, ThemeCharacterSprite, newCharacterAssetIds } from "./art";
 import { SidekickSprite, sidekickAssetIds } from "./art/sidekicks";
+import { PixelSprite } from "./art/pixel/pixel-sprite";
+import { isPixelAssetId, resolveLawyerArt } from "./art/pixel/roster";
+import { useLawyerArtStyle } from "@/components/display-preferences";
 import type { ThemeId } from "./types";
 
 type AssetProps = { className?: string };
@@ -33,7 +36,9 @@ export function BenchAsset({ assetId }: { assetId: ThemeId }) {
   const Bench = benches[assetId];
   return <Bench/>;
 }
-export function CharacterAsset({ assetId, label, className }: AssetProps & { assetId: string; label: string }) {
+export function CharacterAsset({ assetId: configuredId, label: configuredLabel, className }: AssetProps & { assetId: string; label: string }) {
+  const { assetId, label } = resolveLawyerArt(configuredId, configuredLabel, useLawyerArtStyle());
+  if (isPixelAssetId(assetId)) return <PixelSprite assetId={assetId} label={label} className={className}/>;
   if (sidekickAssets.has(assetId)) return <SidekickSprite assetId={assetId} label={label} className={className}/>;
   if (Object.hasOwn(legacySprites, assetId)) {
     const Sprite = legacySprites[assetId];
