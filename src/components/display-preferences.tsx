@@ -1,12 +1,15 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { isLawyerArtStyle, type LawyerArtStyle } from "@/themes/art/pixel/roster";
 import "./display-preferences.css";
 
 export interface DisplayPreferences {
   pauseAnimations: boolean;
   reducedMotion: boolean;
   textSize: "standard" | "large";
+  /** How lawyers are drawn on this browser only; never sent to the room or the AI. */
+  lawyerArt: LawyerArtStyle;
 }
 
 export const displayPreferencesKey = "quarrel-display-preferences-v1";
@@ -14,6 +17,7 @@ export const defaultDisplayPreferences: Readonly<DisplayPreferences> = Object.fr
   pauseAnimations: false,
   reducedMotion: false,
   textSize: "standard",
+  lawyerArt: "theme",
 });
 
 function readPreferences(value: string | null): DisplayPreferences {
@@ -25,6 +29,7 @@ function readPreferences(value: string | null): DisplayPreferences {
       pauseAnimations: fields.pauseAnimations === true,
       reducedMotion: fields.reducedMotion === true,
       textSize: fields.textSize === "large" ? "large" : "standard",
+      lawyerArt: isLawyerArtStyle(fields.lawyerArt) ? fields.lawyerArt : "theme",
     };
   } catch {
     return { ...defaultDisplayPreferences };
@@ -81,4 +86,9 @@ export function useDisplayPreferences(): DisplayPreferencesContextValue {
   const context = useContext(DisplayPreferencesContext);
   if (!context) throw new Error("useDisplayPreferences requires DisplayPreferencesProvider.");
   return context;
+}
+
+/** Safe outside the provider (tests, previews): falls back to the theme's own lawyer art. */
+export function useLawyerArtStyle(): LawyerArtStyle {
+  return useContext(DisplayPreferencesContext)?.preferences.lawyerArt ?? "theme";
 }

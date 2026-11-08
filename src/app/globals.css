@@ -734,9 +734,13 @@ button {color:inherit;}
 .debate-arena[data-counsel="true"] .character--lemur .character-sprite {height:calc(112 * var(--unit));}
 .debate-arena[data-counsel="true"] .judge-bench {width:230px;bottom:calc(var(--ground) - 6px);}
 .court-counsel,.court-jury {position:absolute;z-index:3;margin:0;display:flex;flex-direction:column;align-items:center;}
-.court-counsel {bottom:calc(var(--ground,44px) - var(--plate,30px) - 2px);width:calc(96 * var(--unit,1.4px));}
-.court-counsel--A {left:3%;}
-.court-counsel--B {right:3%;}
+/* the sidekicks are the stars: a size up, a step forward, a theme-coloured plate */
+.court-counsel {bottom:calc(var(--ground,46px) - var(--plate,34px) - 8px);width:calc(96 * var(--unit,1.4px) * 1.18);z-index:4;}
+.court-counsel figcaption {background:var(--theme-accent,#f6be5e);color:var(--theme-accent-ink,var(--ink));}
+.court-counsel[data-reaction="cheer"]>svg {animation:counsel-cheer .5s steps(2,end) infinite;}
+@keyframes counsel-cheer {50%{transform:translateY(-6px)}}
+.court-counsel--A {left:1.5%;}
+.court-counsel--B {right:1.5%;}
 .court-counsel>svg {width:100%;height:auto;aspect-ratio:96/112;filter:drop-shadow(3px 3px 0 #0000002a);}
 :is(.court-counsel,.court-jury) figcaption {margin-top:2px;padding:4px 8px 3px;border:2px solid var(--ink);background:var(--paper);color:var(--ink);box-shadow:2px 2px 0 #0000002a;text-align:center;line-height:1.1;max-width:100%;box-sizing:border-box;}
 .court-counsel figcaption {height:var(--plate,34px);display:grid;align-content:center;padding-top:3px;padding-bottom:2px;}

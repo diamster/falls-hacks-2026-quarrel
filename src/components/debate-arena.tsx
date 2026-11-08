@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { BackgroundAsset, BenchAsset, CharacterAsset } from "@/themes/assets";
 import { PixelBackdrop, PixelJuryBox, isSceneTheme } from "@/themes/art/pixel-scene";
 import type { CharacterPosition, ThemeConfig } from "@/themes";
@@ -7,7 +10,21 @@ import type { CharacterState } from "@/lib/preview";
 
 export type ArenaParticipants = Record<CharacterPosition, { name: string; characterId?: string | null }>;
 
-interface CounselMember { assetId: string; label: string; name: string; role: string; working?: boolean; status?: string }
+interface CounselMember { assetId: string; label: string; name: string; role: string; working?: boolean; status?: string; reaction?: "idle" | "talk" | "think" | "cheer" }
+
+/** Whole-frame ticker for the pixel sidekicks; still when paused or when motion is reduced. */
+function useFrame(running: boolean) {
+  const [frame, setFrame] = useState(0);
+  useEffect(() => {
+    if (!running) return;
+    let still = false;
+    try { still = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch { /* no media queries: animate */ }
+    if (still) return;
+    const timer = window.setInterval(() => setFrame(value => value + 1), 380);
+    return () => window.clearInterval(timer);
+  }, [running]);
+  return running ? frame : 0;
+}
 /** Optional lawyers and jury placed in the scene itself (the debate screen); the lobby and preview omit them. */
 export interface ArenaCounsel { lawyers: Record<CharacterPosition, CounselMember>; jury: CounselMember }
 
@@ -24,6 +41,7 @@ export function DebateArena({ theme, players, dialogue, dialogueKey, paused, roo
   spotlight?: CharacterPosition | null;
   spotlightLabel?: string;
 }) {
+  const frame = useFrame(Boolean(counsel) && !paused);
   return <section className="courtroom pixel-panel debate-arena" aria-label={theme.environmentLabel} data-theme={theme.id} data-paused={paused} data-room={roomCode ? "joined" : "none"} data-counsel={Boolean(counsel)} data-spotlight={spotlight ?? "none"}>
     {isSceneTheme(theme.id) ? <PixelBackdrop theme={theme.id} className="jungle-backdrop pixel-backdrop"/> : <BackgroundAsset assetId={theme.assets.background} className="jungle-backdrop"/>}
     <div className="court-vignette"/>
@@ -48,9 +66,9 @@ export function DebateArena({ theme, players, dialogue, dialogueKey, paused, roo
           <PixelCharacter theme={theme} slot="B" displayName={players.B.name} characterId={players.B.characterId} state={turn?.activeSlot === "B" ? "speaking" : turn?.activeSlot ? "listening" : "idle"} paused={paused}/>
         </div>
         {counsel && <>
-          {(["A", "B"] as const).map(slot => { const lawyer = counsel.lawyers[slot]; return <figure key={slot} className={`court-counsel court-counsel--${slot}`} data-working={Boolean(lawyer.working)}>
+          {(["A", "B"] as const).map(slot => { const lawyer = counsel.lawyers[slot]; return <figure key={slot} className={`court-counsel court-counsel--${slot}`} data-working={Boolean(lawyer.working)} data-reaction={lawyer.reaction ?? "idle"}>
             {lawyer.working && <span className="court-counsel-busy">{lawyer.status ?? "Working…"}</span>}
-            <CharacterAsset assetId={lawyer.assetId} label={lawyer.label}/>
+            <CharacterAsset assetId={lawyer.assetId} label={lawyer.label} reaction={lawyer.reaction ?? "idle"} frame={frame}/>
             <figcaption><strong>{lawyer.name}</strong><span>{lawyer.role}</span></figcaption>
           </figure>; })}
           <figure className="court-jury" data-working={Boolean(counsel.jury.working)}>

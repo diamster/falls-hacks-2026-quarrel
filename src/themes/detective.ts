@@ -1,4 +1,6 @@
 import { neutralityPolicy, type ThemeConfig } from "./types";
+import { mascots } from "./art/pixel/mascots";
+import { mascotAssetId, mascotLawyers } from "./art/pixel/roster";
 
 export const detective: ThemeConfig = {
   id: "detective", displayName: "Detective", description: "Two stories. One rainy night. Follow the evidence in a monochrome detective office.",
@@ -10,8 +12,8 @@ export const detective: ThemeConfig = {
     "detective-witness": { id: "detective-witness", displayName: "Ellis", roleLabel: "Witness", assetId: "detective-witness", description: "Ellis, a monochrome witness in a waistcoat" },
   } },
   lawyers: {
-    A: { id: "detective-marlow", displayName: "Marlow", assetId: "detective-lawyer-a", description: "Marlow, an original monochrome attorney in a pinstriped suit holding a case folder", personality: "Observant, economical and quietly reassuring. A precise advocate with dry humor.", dialogueStyle: "Short noir-style sentences that distinguish the player's stated reasons from speculation." },
-    B: { id: "detective-arden", displayName: "Arden", assetId: "detective-lawyer-b", description: "Arden, an original monochrome attorney with round spectacles, a light coat and a dossier", personality: "Patient, perceptive and methodical. A thoughtful advocate who finds a clear thread in their player's argument.", dialogueStyle: "Measured detective-office phrasing with restrained asides; never manufacture a clue or allegation." },
+    A: { id: "detective-marlow", displayName: "Marlow", assetId: mascotAssetId(mascotLawyers.A, "detective"), description: `Marlow, drawn as ${mascots[mascotLawyers.A].description}`, personality: "Observant, economical and quietly reassuring. A precise advocate with dry humor.", dialogueStyle: "Short noir-style sentences that distinguish the player's stated reasons from speculation." },
+    B: { id: "detective-arden", displayName: "Arden", assetId: mascotAssetId(mascotLawyers.B, "detective"), description: `Arden, drawn as ${mascots[mascotLawyers.B].description}`, personality: "Patient, perceptive and methodical. A thoughtful advocate who finds a clear thread in their player's argument.", dialogueStyle: "Measured detective-office phrasing with restrained asides; never manufacture a clue or allegation." },
   },
   jury: { id: "detective-night-jury", displayName: "The Night Panel", assetId: "detective-jury", description: "Three original monochrome jurors with distinct hairstyles seated behind a dark case-review desk", personality: "Skeptical, observant and impartial. The panel separates supported reasoning from atmosphere.", dialogueStyle: "Concise case-review language and explicit uncertainty; a hunch is never evidence.", neutralityPolicy },
   judge: { id: "detective-vale", displayName: "Detective Vale", assetId: "detective-vale", description: "Detective Vale, a monochrome investigator wearing a trench coat and fedora", personality: "Observant, skeptical and quietly mysterious, with dry humor. Questions claims equally on both sides.", dialogueStyle: "Measured noir phrasing, short observations and occasional dry asides. Suspicion is never proof.", neutralityPolicy,
