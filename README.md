@@ -1,10 +1,10 @@
-# quarrel.io — Stage 5: Lawyer Sidekicks
+# quarrel.io — Stage 6A: Backend reliability
 
 A private two-player debate game built with Next.js App Router, TypeScript, Tailwind, Supabase Cloud and Gemini. Each player develops their own position and presents arguments through a personal AI lawyer. A neutral judge summarizes each planned subtopic; a jury reviews the complete official record and can return A, B or split/inconclusive.
 
-Work belongs to [diamster/falls-hacks-2026-quarrel](https://github.com/diamster/falls-hacks-2026-quarrel), on **`quarrel-stage-5`**. Do not use `main`, which contains an older baseline. Read [the original handoff](docs/stage-5-handoff.md), then [the current approved decisions](docs/stage-5-decisions.md). The latter records the updated flow and approved D1–D12. [Stage 5 testing](docs/stage-5-testing.md) distinguishes completed checks from pending acceptance work.
+Stage 6A is developed on **`quarrel-stage-6a`**, based on the completed Stage 5 app and invite flow. It adds reliable jury completion, public-only evaluation context, per-debate archives, results acknowledgement and mutually approved rematches. No UI or Stage 6B/6C work is included. Read [the backend API contract](docs/stage-6a-api.md) and [the test/status report](docs/stage-6a-testing.md).
 
-The current public site, [falls-hacks-2026-quarrel.vercel.app](https://falls-hacks-2026-quarrel.vercel.app), still serves the earlier Stage 4 deployment. This Stage 5 work does not include a new deployment. The local Stage 5 app uses the connected Supabase Cloud project; running locally does not make its localhost invitation accessible on another computer.
+The production site continues to use the existing Stage 5 code. A replacement Gemini credential was installed and that same production commit redeployed; Stage 6A itself is not deployed. Its reviewed migration has now been approved and applied to the connected Cloud project; see the verification record. Future migrations still require approval.
 
 ## Run locally
 
@@ -12,14 +12,14 @@ Requirements: Node.js 22.12+, npm, internet access, and the existing Cloud confi
 
 ```sh
 git fetch origin
-git switch quarrel-stage-5
+git switch quarrel-stage-6a
 npm ci
 ```
 
 For a fresh checkout:
 
 ```sh
-git clone --branch quarrel-stage-5 https://github.com/diamster/falls-hacks-2026-quarrel.git
+git clone --branch quarrel-stage-6a https://github.com/diamster/falls-hacks-2026-quarrel.git
 cd falls-hacks-2026-quarrel
 npm ci
 ```
@@ -30,7 +30,7 @@ npm ci
 SUPABASE_URL=https://exjdvtqsalnkghyohyuh.supabase.co
 SUPABASE_PUBLISHABLE_KEY=your-project-publishable-key
 GEMINI_API_KEY=
-GEMINI_MODEL=gemini-3.6-flash
+GEMINI_MODEL=gemini-3.1-flash-lite
 JUDGE_AI_MODE=auto
 JUDGE_AI_TIMEOUT_MS=8000
 JUDGE_SERVER_SECRET=your-existing-project-server-capability
@@ -58,7 +58,7 @@ For production mode locally, stop the development server, run `npm run build`, t
 4. **Present through your lawyer.** On your turn, write a point and press **Present my argument**. Your clock stops while your lawyer prepares the presentation. The saved presentation appears for both players, then the opposing clock starts if that player still has time.
 5. **Consult privately if useful.** **Ask my lawyer privately** is a separate action. The reply stays private, does not submit an argument, and resumes your own remaining clock after processing.
 6. **Review each subtopic.** A opens odd subtopics; B opens even ones. When one player runs out of time, the other can continue. Only when both clocks reach zero does the judge save and display a neutral summary before the next subtopic.
-7. **Read the jury decision.** After the final summary, the jury reviews the full official debate and all summaries, explains both sides' reasoning and returns A, B or split/inconclusive. It evaluates the presented case, not who is factually or morally right. Demo/fallback verdicts are labelled and do not claim a live AI evaluation.
+7. **Read the jury decision.** After the final summary, the jury reviews the full official debate and all summaries, explains both sides' reasoning and returns A, B or split/inconclusive. It evaluates the presented case, not who is factually or morally right. Stage 6A distinguishes A, B, tie and inconclusive decisions. A provider failure leaves the jury retryable with no saved verdict; it does not fabricate an inconclusive evaluation.
 
 AI and summary-display time is additional to the chosen writing time. The host's “4 minutes each” setting therefore does not promise a four-minute wall-clock debate. No Ask Judge chat, judge-question rounds or objection controls appear in the current flow. No AI-generated main topics, character customization, Team Mode, voice/video or account-registration screen were added.
 
@@ -66,12 +66,12 @@ AI and summary-display time is additional to the chosen writing time. The host's
 
 | Action | Who can read it | Clock after processing | Per-player limit, per subtopic |
 | --- | --- | --- | --- |
-| **Present my argument** | Both players see the lawyer presentation. The author can expand their original official draft, hidden from the opponent. The judge/jury can review official drafts and presentations. | Opponent starts if they have time; otherwise the same player continues if they have time. | 12 presentations; 600-character input; output at most 1.5× input, capped at 900 characters. |
+| **Present my argument** | Both players see the lawyer presentation. The author can expand their original official draft, hidden from the opponent. The judge/jury receive only public presentations, not original private drafts. | Opponent starts if they have time; otherwise the same player continues if they have time. | 12 presentations; 600-character input; output at most 1.5× input, capped at 900 characters. |
 | **Ask my lawyer privately** | Only the owning player and their lawyer. Never the opposing player, public transcript, judge summary or jury evidence. | The same player's remaining clock resumes. | 2 consultations; 600-character input. |
 
 Only the active verified player can use either action. Both clocks pause during model processing. Quotas reset at the next subtopic; reaching a quota neither adds time nor ends the remaining clock. Submitted history survives refresh; unsent text is local to the current tab. A private consultation does not erase an unsent official draft.
 
-Lawyers are instructed to preserve meaning and qualifications, without adding facts, evidence or new arguments. Bounded context, structured responses, validation and unchanged-text fallbacks reduce errors; they cannot guarantee that every live rewrite is semantically perfect. Original official drafts remain available to their author and to the judge/jury for comparison. Private consultations are excluded from that evidence.
+Lawyers are instructed to preserve meaning and qualifications, without adding facts, evidence or new arguments. Bounded context, structured responses, validation and unchanged-text fallbacks reduce errors; they cannot guarantee that every live rewrite is semantically perfect. Original official drafts remain available only to their author in the client; Stage 6A excludes them from judge/jury context. Private consultations are excluded from that evidence.
 
 ## Courtroom, history and Settings
 
@@ -106,7 +106,7 @@ The server reserves idempotent work before generating, claims each job once and 
 
 One Gemini engine handles planning, public lawyer presentations, private consultations, judge summaries and jury evaluation. Keys and the worker capability never reach browser code. Role-specific context excludes private consultations from public roles. Only the jury's structured result can identify an outcome. Submitted text is untrusted data; personalities affect wording, not evidence standards. Threats, abuse and coercion receive safer redirection rather than competitive judgment.
 
-`JUDGE_AI_MODE=auto` uses Gemini when configured; `demo` produces deterministic labelled responses. Failed, malformed or timed-out public lawyer output becomes the **unchanged submitted text**, labelled unedited fallback. AI timeout defaults to approximately eight seconds. Pending work also has a lease; an authorized read/heartbeat recovers expired work without another model call, and a late response cannot replace a completed result. There is no permanent background worker: progress after all clients disconnect is reconciled when a participant returns. Fallback summaries/verdicts preserve the record and identify the lack of live evaluation; fallback verdicts are split/inconclusive.
+`JUDGE_AI_MODE=auto` uses Gemini when configured; `demo` produces deterministic labelled responses. Failed, malformed or timed-out public lawyer output becomes the **unchanged submitted text**, labelled unedited fallback. AI timeout defaults to approximately eight seconds. Pending work also has a lease; an authorized read/heartbeat recovers expired work without another model call, and a late response cannot replace a completed result. There is no permanent background worker: progress after all clients disconnect is reconciled when a participant returns. Fallback summaries remain factual, labelled descriptions of the public transcript. Stage 6A never saves a fallback verdict: failed jury attempts use fenced, bounded retries followed by an explicit participant retry. Optional `GEMINI_FALLBACK_MODEL` permits one alternate Gemini model on rate limits/provider outages within the same timeout; it is unset by default.
 
 Rooms expire after 24 hours; expiry is an access rule, not automatic deletion. Connection indicators use authenticated heartbeats and may show sleeping/background devices as disconnected. Realtime outages fall back to periodic refresh. The Cloud project is dedicated to quarrel: its insert/update-only publication guard also affects other tables added to that project. Do not remove the guard or weaken Auth protections to make tests pass.
 

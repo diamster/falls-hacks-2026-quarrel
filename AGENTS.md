@@ -1,3 +1,18 @@
+# Stage 6A — current authorization
+
+Work only on `quarrel-stage-6a`, based on completed Stage 5 plus the invite flow at `01ec1c7`. The user's Stage 6A brief supersedes conflicting historical branch and evidence rules below. Backend only: no UI, CSS, animation, Stage 6B or 6C changes.
+
+- Jury and judge context uses public presentations and saved public summaries only; exclude official private drafts and private consultations.
+- Stage 6 jury failures remain pending/retryable, never fabricated verdicts. Demo mode must not complete a Stage 6 debate with a simulated winner or inconclusive result.
+- Preserve Stage 5 compatibility through versioned worker APIs; preserve archives, clocks, memberships, theme and existing RLS.
+- Rematches require both original participants and a completed debate; create a new debate ID, retain previous results, and reject stale operations.
+- Result acknowledgement is independent per player and never means agreement or resolution.
+- Show the complete proposed migration and obtain explicit approval before applying it to Cloud. No reset, deletion or weakened authorization.
+- Do not merge or push this stage into main or older stage branches. The separate key replacement/redeployment of existing production code is authorized; it does not deploy Stage 6A.
+- See `docs/stage-6a-api.md` and `docs/stage-6a-testing.md` for backend usage and actual validation.
+
+---
+
 # quarrel.io — Stage 5 boundary
 
 This is the standalone quarrel.io repository: `diamster/falls-hacks-2026-quarrel`. All future quarrel.io changes and pushes belong here. The Next.js app lives at the repository root. Do not use `falls-hacks-2026-ideas` or the SFU campus checkout for this app.

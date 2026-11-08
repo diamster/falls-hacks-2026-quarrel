@@ -1,4 +1,4 @@
-/** Stage 5 HTTP + authenticated Realtime integration, without admin credentials.
+/** Stage 5–6A HTTP + authenticated Realtime integration, without admin credentials.
  * Only run after reviewing/applying the Stage 5 migration to the authorized project:
  * QUARREL_ALLOW_REMOTE_TESTS=true QUARREL_TEST_URL=http://127.0.0.1:3000 \
  * node --env-file=.env.local tests/db/lawyer.integration.mjs
@@ -8,6 +8,8 @@
  * At most 10 generation jobs: two plans, one consult, two presentations,
  * up to four summaries (120s / 30s minimum) and one jury result. The local app
  * can run with JUDGE_AI_MODE=demo; actual stored sources are reported explicitly.
+ * Stage 6A demo mode deliberately stops at a retryable jury with no fabricated
+ * verdict; legacy version-1 completion assertions remain below.
  */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -133,6 +135,7 @@ const privateMarker = `PRIVATE_CONSULT_${randomUUID().replaceAll('-', '')}`;
 try {
   assert.deepEqual((await a.request('/session')).data, { room: null });
   let room = await success(a, '', { name: 'Lawyer Test Alex' }); fixtureId = room.id;
+  const versionTwo = room.lawyer.reliabilityVersion === 2;
   assert.equal(room.themeId, 'courtroom'); assert.equal(room.lawyer.format, 'lawyer');
   assert.equal(room.lawyer.phase, 'setup'); assert.equal(room.capacity, 2);
   await success(b, '/join', { code: room.code.toLowerCase(), name: 'Lawyer Test Sam' });
@@ -335,10 +338,12 @@ try {
       console.log(`Observed server phase ${d.phase}, subtopic ${d.currentSubtopic ?? '—'}, active player ${d.activeSlot ?? 'none'}.`);
       lastProgress = progress;
     }
-    if (d.phase === 'complete') break;
+    if (d.phase === 'complete' || (versionTwo && d.phase === 'jury' && d.juryStatus?.state === 'retry_required' && d.juryStatus.errorCode === 'demo_mode')) break;
     await pause(1000);
   }
-  assert.equal(room.lawyer.phase, 'complete', 'Real server deadlines must finish within the bounded test window.');
+  const unavailableDemoJury = versionTwo && room.lawyer.phase === 'jury' && room.lawyer.juryStatus?.state === 'retry_required' && room.lawyer.juryStatus.errorCode === 'demo_mode';
+  if (versionTwo && process.env.JUDGE_AI_MODE === 'demo') assert.ok(unavailableDemoJury, 'Stage 6A demo mode must not fabricate a final verdict.');
+  assert.equal(room.lawyer.phase, unavailableDemoJury ? 'jury' : 'complete', 'Real deadlines must reach a completed verdict or the explicit Stage 6A demo-unavailable state within the bounded test window.');
   assert.ok(sawDisconnected, 'A missed heartbeat is displayed as disconnected while B keeps the room moving.');
   assert.ok(expiredTurnRejected, 'At least one expired player clock was tested against submission.');
   assert.equal(seenSubtopics.size, room.lawyer.subtopics.length);
@@ -353,9 +358,25 @@ try {
   assert.deepEqual(summaries.map(item => item.label), finalB.lawyer.subtopics.map(item => `S${item.ordinal}-J`));
   assert.ok(summaries.every(item => item.status === 'complete' && item.text));
   const verdicts = finalB.lawyer.history.filter(item => item.kind === 'jury_verdict');
-  assert.equal(verdicts.length, 1); assert.equal(verdicts[0].label, 'JURY'); assert.equal(verdicts[0].status, 'complete');
-  assert.ok(['A', 'B', 'split'].includes(finalB.lawyer.verdict.outcome));
-  assert.ok(finalB.lawyer.verdict.reasoning); assert.equal(finalB.lawyer.verdict.perSubtopic.length, summaries.length);
+  assert.equal(verdicts.length, 1); assert.equal(verdicts[0].label, 'JURY');
+  if (unavailableDemoJury) {
+    assert.equal(verdicts[0].status, 'pending'); assert.equal(verdicts[0].text, null); assert.equal(verdicts[0].completedAt, null);
+    assert.equal(finalA.lawyer.verdict, null); assert.equal(finalB.lawyer.verdict, null);
+    assert.deepEqual(finalA.lawyer.juryStatus, finalB.lawyer.juryStatus);
+    assert.equal(finalB.lawyer.juryStatus.state, 'retry_required');
+    assert.equal(finalB.lawyer.juryStatus.errorCode, 'demo_mode');
+    assert.equal(finalB.lawyer.juryStatus.attempts, 1, 'Demo mode is not a temporary provider failure and must not trigger automatic retries.');
+    assert.equal(finalB.lawyer.juryStatus.retryAt, null); assert.equal(finalB.lawyer.needsWork, false);
+    assert.equal((await a.request(`/lawyer/history?debateId=${finalA.lawyer.debateId}`)).status, 409, 'An unavailable jury cannot be published as completed results.');
+  } else {
+    assert.equal(verdicts[0].status, 'complete');
+    assert.ok(['A', 'B', 'split'].includes(finalB.lawyer.verdict.outcome));
+    assert.ok(finalB.lawyer.verdict.reasoning); assert.equal(finalB.lawyer.verdict.perSubtopic.length, summaries.length);
+    if (versionTwo) {
+      assert.equal(verdicts[0].source, 'ai', 'Stage 6A must not complete a simulated jury verdict.');
+      assert.ok(['A', 'B', 'tie', 'inconclusive'].includes(finalB.lawyer.verdict.decision));
+    }
+  }
   assert.equal(new Set(finalB.lawyer.history.map(item => item.id)).size, finalB.lawyer.history.length);
   assert.equal(new Set(finalB.lawyer.history.map(item => item.label)).size, finalB.lawyer.history.length);
   assert.equal(finalB.lawyer.turnDeadline, null); assert.equal(finalB.lawyer.activeSlot, null);
@@ -374,11 +395,19 @@ try {
   assert.deepEqual(finalRefresh.lawyer.history, finalA.lawyer.history);
   assert.deepEqual(finalRefresh.lawyer.verdict, finalA.lawyer.verdict);
   assert.deepEqual(finalRefresh.lawyer.consultations, finalA.lawyer.consultations);
+  if (unavailableDemoJury) assert.deepEqual(finalRefresh.lawyer.juryStatus, finalA.lawyer.juryStatus);
   const repeatedAdvance = await success(a, '/lawyer/advance', { revision }, scope());
   assert.deepEqual(repeatedAdvance.lawyer.history, finalA.lawyer.history);
+  if (unavailableDemoJury) {
+    assert.equal(repeatedAdvance.lawyer.verdict, null);
+    assert.deepEqual(repeatedAdvance.lawyer.juryStatus, finalA.lawyer.juryStatus, 'Refresh/advance cannot reserve duplicate unavailable jury work.');
+    assert.equal(repeatedAdvance.lawyer.needsWork, false);
+  }
   assert.equal((await a.request('/lawyer/argument', { ...firstMessage, requestKey: randomUUID() }, scope())).status, 409);
   assert.ok(sources.size <= 10, 'This scenario must remain within its declared generation-job budget.');
-  pass('Every subtopic has one saved summary and the jury has one shared structured verdict; refresh and retries preserve the final record without private transcript or Realtime leaks.');
+  pass(unavailableDemoJury
+    ? 'Every subtopic has one saved summary; Stage 6A demo jury stays retryable with one pending canonical job and no verdict. Refresh and advance preserve it without private transcript or Realtime leaks.'
+    : 'Every subtopic has one saved summary and the jury has one shared structured verdict; refresh and retries preserve the final record without private transcript or Realtime leaks.');
   const counts = Object.fromEntries(['ai', 'demo', 'fallback'].map(source => [source, [...sources.values()].filter(value => value === source).length]));
   console.log(`All ${checks} Stage 5 HTTP/Realtime checks passed. Completed generation sources: ${JSON.stringify(counts)}. Demo/fallback responses do not establish live Gemini success.`);
 } finally {

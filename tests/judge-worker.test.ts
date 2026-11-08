@@ -33,14 +33,14 @@ describe("server judge worker",()=>{
 
 describe("Stage 5 claimed work", () => {
   const generateLawyer = vi.mocked(generateLawyerResult);
-  const job = { id: "private-job", kind: "consult" };
+  const job = { id: "private-job", kind: "consult", claimToken: "attempt-token" };
   const result = { kind: "consult" as const, source: "demo" as const, text: "Private advice" };
   it("saves exactly one result through the caller's authorized database client", async () => {
     const rpc = vi.fn().mockResolvedValueOnce({ data: job, error: null }).mockResolvedValueOnce({ data: {}, error: null });
     generateLawyer.mockResolvedValue(result);
     expect(await processLawyerWork({ rpc } as unknown as SupabaseClient, "capability")).toBe(true);
-    expect(rpc).toHaveBeenNthCalledWith(1, "claim_quarrel_lawyer_work", { p_server_key: "capability" });
-    expect(rpc).toHaveBeenNthCalledWith(2, "finish_quarrel_lawyer_work", { p_id: job.id, p_result: result, p_server_key: "capability" });
+    expect(rpc).toHaveBeenNthCalledWith(1, "claim_quarrel_lawyer_work_v2", { p_server_key: "capability" });
+    expect(rpc).toHaveBeenNthCalledWith(2, "finish_quarrel_lawyer_work_v2", { p_id: job.id, p_result: result, p_server_key: "capability", p_claim_token: job.claimToken });
     expect(generateLawyer).toHaveBeenCalledExactlyOnceWith(job);
   });
   it.each([{ data: null, error: null }, { data: null, error: { message: "Denied" } }])("does not generate without an authorized claim", async response => {
@@ -57,5 +57,23 @@ describe("Stage 5 claimed work", () => {
   it("recovers thrown transport errors without exposing private provider details", async () => {
     const rpc = vi.fn().mockRejectedValue(new Error("Private error"));
     expect(await processLawyerWork({ rpc } as unknown as SupabaseClient, "capability")).toBe(false);
+  });
+  it("requires the database's attempt token before making a paid call", async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { id: "job", kind: "jury" }, error: null });
+    expect(await processLawyerWork({ rpc } as unknown as SupabaseClient, "capability")).toBe(false);
+    expect(generateLawyer).not.toHaveBeenCalled();
+  });
+  it.each(["quota_exhausted", "rate_limited", "timeout", "invalid_response", "missing_configuration", "demo_mode", "unsafe_dispute"])("records %s without producing a jury verdict", async reasonCode => {
+    const rpc = vi.fn().mockResolvedValueOnce({ data: { ...job, kind: "jury" }, error: null }).mockResolvedValueOnce({ error: null });
+    generateLawyer.mockRejectedValue(Object.assign(new Error("private provider response"), { reasonCode }));
+    expect(await processLawyerWork({ rpc } as unknown as SupabaseClient, "capability")).toBe(false);
+    expect(rpc).toHaveBeenLastCalledWith("fail_quarrel_lawyer_work", { p_id: job.id, p_claim_token: job.claimToken, p_server_key: "capability", p_error_code: reasonCode });
+    expect(rpc).toHaveBeenCalledTimes(2);
+  });
+  it("reduces unknown errors to a fixed safe code and tolerates failure-record outages", async () => {
+    const rpc = vi.fn().mockResolvedValueOnce({ data: job, error: null }).mockRejectedValueOnce(new Error("database outage"));
+    generateLawyer.mockRejectedValue({ reasonCode: "secret data" });
+    expect(await processLawyerWork({ rpc } as unknown as SupabaseClient, "capability")).toBe(false);
+    expect(rpc).toHaveBeenLastCalledWith("fail_quarrel_lawyer_work", { p_id: job.id, p_claim_token: job.claimToken, p_server_key: "capability", p_error_code: "provider_unavailable" });
   });
 });

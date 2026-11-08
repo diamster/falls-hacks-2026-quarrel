@@ -85,7 +85,7 @@ describe("session-authorized room API", () => {
   it("creates a room with a trimmed name and protected session cookies", async () => {
     const response = await roomRoute(req("", { name: "  Lion  " }), "create");
     expect(response.status).toBe(200);
-    expect(mock.rpc).toHaveBeenCalledWith("create_quarrel_lawyer_room", { p_name: "Lion" });
+    expect(mock.rpc).toHaveBeenCalledWith("create_quarrel_lawyer_room_v2", { p_name: "Lion" });
     expect((await response.json()).realtime).toEqual({ url: "http://localhost:54321", key: "public-key", accessToken: "signed-token" });
     for (const item of response.cookies.getAll()) expect(item).toMatchObject({ httpOnly: true, sameSite: "strict", path: "/api/rooms", maxAge: 604800 });
   });
@@ -404,7 +404,7 @@ describe("Stage 5 verified-player actions", () => {
     expect(mock.rpc).toHaveBeenCalledWith("prepare_quarrel_lawyer_plan", expect.objectContaining({ p_revision: 3, p_regenerate: false }));
     expect(mock.after).toHaveBeenCalledTimes(1);
     mock.rpc.mockResolvedValue({ data: null, error: null }); await mock.after.mock.calls[0][0]();
-    expect(mock.rpc).toHaveBeenCalledWith("claim_quarrel_lawyer_work", expect.any(Object));
+    expect(mock.rpc).toHaveBeenCalledWith("claim_quarrel_lawyer_work_v2", expect.any(Object));
   });
   it("keeps a successful readiness response when another request already reserved the plan", async () => {
     mock.rpc.mockResolvedValueOnce({ data: { ...room, bothReady: true, lawyer: { phase: "setup", confirmedA: true, confirmedB: true, revision: 3 } }, error: null })

@@ -4,7 +4,8 @@ import { getTheme, isThemeId } from "@/themes";
 import { judgeServerConfig, processJudgeWork, processLawyerWork } from "./judge-worker";
 
 type Action = "session" | "create" | "join" | "leave" | "ready" | "heartbeat" | "theme" | "propose" | "approve" | "changes" | "start" | "argument" | "advance" | "judge"
-  | "lawyerTopic" | "lawyerPosition" | "lawyerPlan" | "lawyerStart" | "lawyerSend" | "lawyerConsult" | "lawyerAdvance";
+  | "lawyerTopic" | "lawyerPosition" | "lawyerPlan" | "lawyerStart" | "lawyerSend" | "lawyerConsult" | "lawyerAdvance"
+  | "resultsHistory" | "resultsAcknowledge" | "rematch" | "juryRetry";
 const roomIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const cookieNames = ["quarrel_access", "quarrel_refresh"] as const;
 const messages: Record<string, [number, string]> = {
@@ -75,6 +76,14 @@ const messages: Record<string, [number, string]> = {
   LAWYER_REQUEST_CONFLICT: [409, "This request ID already belongs to another message. Submit a new request."],
   LAWYER_LIMIT_REACHED: [429, "You have used this subtopic’s allowance for that action. Your remaining writing time is unchanged."],
   INVALID_LAWYER_CONFIG: [503, "The lawyer service needs its server configuration. Your room is saved."],
+  INVALID_DEBATE: [400, "Choose a valid debate record."],
+  RESULTS_NOT_FOUND: [404, "That debate result is not available to this player."],
+  STALE_DEBATE: [409, "This debate has changed. Refresh before trying again."],
+  RESULTS_NOT_READY: [409, "The final results are not ready yet."],
+  REMATCH_NOT_READY: [409, "Both players must finish this debate before requesting a rematch."],
+  JURY_RETRY_NOT_READY: [409, "The jury is still processing or does not need a retry."],
+  JURY_RETRY_RATE_LIMITED: [429, "Please wait before retrying the jury."],
+  STALE_LAWYER_CLAIM: [409, "This processing attempt has expired. The saved debate remains available."],
 };
 
 class RoomError extends Error {
@@ -97,7 +106,7 @@ function client(url: string, key: string, token?: string, roomId?: string | null
 
 function failDatabase(message: string): never {
   const known = messages[message];
-  if (known) throw new RoomError(...known, message === "STALE_ROOM" ? message : undefined);
+  if (known) throw new RoomError(...known, message === "STALE_ROOM" || message === "STALE_DEBATE" ? message : undefined);
   throw new RoomError(503, "The room service is temporarily unavailable. Please try again.");
 }
 
@@ -134,6 +143,16 @@ async function identity(request: NextRequest, url: string, key: string, allowNew
 
 async function input(request: NextRequest, action: Action): Promise<Record<string, unknown>> {
   if (action === "session") return {};
+  if (action === "resultsHistory") {
+    // Read-only archives use authenticated cookies, never a public room code.
+    const params = request.nextUrl.searchParams;
+    const keys = [...params.keys()];
+    if (keys.length > 1 || keys.some(key => key !== "debateId" && key !== "roomId")) failDatabase("INVALID_DEBATE");
+    const debateId = params.get("debateId");
+    const roomId = params.get("roomId");
+    if ((debateId !== null && !roomIdPattern.test(debateId)) || (roomId !== null && !roomIdPattern.test(roomId))) failDatabase("INVALID_DEBATE");
+    return { debateId, roomId };
+  }
   // SameSite cookies plus strict Origin checking protect cookie-authorized writes.
   // NextURL normalizes 127.0.0.1 to localhost. The actual Host header preserves
   // the browser origin; never treat these distinct cookie origins as equivalent.
@@ -176,6 +195,7 @@ async function input(request: NextRequest, action: Action): Promise<Record<strin
     lawyerTopic: ["topic", "totalSeconds", "revision"], lawyerPosition: ["position", "revision"],
     lawyerPlan: ["revision", "regenerate"], lawyerStart: ["revision", "planGeneration"], lawyerAdvance: ["revision"],
     lawyerSend: ["text", "revision", "subtopic", "requestKey"], lawyerConsult: ["text", "revision", "subtopic", "requestKey"],
+    resultsAcknowledge: ["debateId"], rematch: ["debateId"], juryRetry: ["debateId"],
   }[action];
   if (!body || Array.isArray(body) || typeof body !== "object" || Object.keys(body).some(key => !fields.includes(key))) {
     throw new RoomError(400, "Unexpected room request fields. Player identity comes from your session.");
@@ -191,6 +211,8 @@ async function input(request: NextRequest, action: Action): Promise<Record<strin
   if (action === "ready" && typeof body.ready !== "boolean") failDatabase("INVALID_READY");
   if (action === "leave" && (typeof body.roomId !== "string" || !roomIdPattern.test(body.roomId))) failDatabase("INVALID_ROOM");
   if (action === "theme" && !isThemeId(body.themeId)) failDatabase("INVALID_THEME");
+  if (["resultsAcknowledge", "rematch", "juryRetry"].includes(action)
+    && (typeof body.debateId !== "string" || !roomIdPattern.test(body.debateId))) failDatabase("INVALID_DEBATE");
   if (["propose", "approve", "changes", "start", "argument", "advance", "judge"].includes(action) || action.startsWith("lawyer")) {
     if (!Number.isInteger(body.revision) || (body.revision as number) < 0 || (body.revision as number) > 2_147_483_646) failDatabase("INVALID_REVISION");
   }
@@ -241,8 +263,10 @@ export async function roomRoute(request: NextRequest, action: Action) {
   let response: NextResponse;
   try {
     const body = await input(request, action);
-    const expectedRoomId = action === "session" ? null : request.headers.get("x-quarrel-room-id");
+    const archiveAction = action === "resultsHistory" || action === "resultsAcknowledge";
+    const expectedRoomId = action === "session" || archiveAction ? null : request.headers.get("x-quarrel-room-id");
     if (expectedRoomId !== null && !roomIdPattern.test(expectedRoomId)) failDatabase("INVALID_ROOM");
+    if ((action === "rematch" || action === "juryRetry") && expectedRoomId === null) failDatabase("INVALID_ROOM");
     const { url, key } = config();
     // This is a stale-view guard, never identity: Postgres checks it under the
     // same room lock as the authorized mutation. GET recovers the current room.
@@ -253,10 +277,10 @@ export async function roomRoute(request: NextRequest, action: Action) {
     } else {
       renewed = auth.session;
       const judge = judgeServerConfig();
-      if (["start", "judge", "lawyerPlan"].includes(action) && !judge.serverKey) failDatabase("JUDGE_NOT_CONFIGURED");
+      if (["start", "judge", "lawyerPlan", "juryRetry"].includes(action) && !judge.serverKey) failDatabase("JUDGE_NOT_CONFIGURED");
       const rpc: Record<Action, [string, Record<string, unknown>]> = {
         session: ["get_quarrel_room", {}],
-        create: ["create_quarrel_lawyer_room", { p_name: body.name }],
+        create: ["create_quarrel_lawyer_room_v2", { p_name: body.name }],
         join: ["join_quarrel_room", { p_name: body.name, p_code: body.code }],
         leave: ["leave_quarrel_room", { p_expected_room_id: body.roomId }],
         ready: ["set_quarrel_ready", { p_ready: body.ready }],
@@ -276,6 +300,10 @@ export async function roomRoute(request: NextRequest, action: Action) {
         lawyerSend: ["submit_quarrel_lawyer_argument", { p_text: body.text, p_revision: body.revision, p_subtopic: body.subtopic, p_request_key: body.requestKey }],
         lawyerConsult: ["consult_quarrel_lawyer", { p_text: body.text, p_revision: body.revision, p_subtopic: body.subtopic, p_request_key: body.requestKey }],
         lawyerAdvance: ["advance_quarrel_lawyer_debate", { p_revision: body.revision }],
+        resultsHistory: body.debateId ? ["get_quarrel_lawyer_results", { p_debate_id: body.debateId }] : ["list_quarrel_lawyer_results", { p_room_id: body.roomId ?? null }],
+        resultsAcknowledge: ["acknowledge_quarrel_lawyer_results", { p_debate_id: body.debateId }],
+        rematch: ["request_quarrel_lawyer_rematch", { p_debate_id: body.debateId }],
+        juryRetry: ["retry_quarrel_lawyer_jury", { p_debate_id: body.debateId }],
       };
       const [name, params] = rpc[action];
       if (action === "start") {
@@ -287,19 +315,20 @@ export async function roomRoute(request: NextRequest, action: Action) {
       }
       let { data, error } = await (auth.db as SupabaseClient).rpc(name, params);
       if (error) failDatabase(error.message);
-      if (data?.lawyer?.phase === "setup" && data.bothReady && data.lawyer.confirmedA && data.lawyer.confirmedB && judge.serverKey) {
+      if (!archiveAction && data?.lawyer?.phase === "setup" && data.bothReady && data.lawyer.confirmedA && data.lawyer.confirmedB && judge.serverKey) {
         // A database reservation makes automatic planning once-per-revision,
         // even if both players' readiness and heartbeats arrive together.
         const plan = await auth.db.rpc("prepare_quarrel_lawyer_plan", { p_revision: data.lawyer.revision, p_regenerate: false, p_mode: judge.mode, p_server_key: judge.serverKey });
         if (!plan.error && plan.data) data = plan.data;
       }
-      if (data?.lawyer?.needsWork && judge.serverKey) after(() => processLawyerWork(auth.db, judge.serverKey).then(() => {}));
-      if (data?.judge?.needsWork && judge.serverKey) {
+      if (!archiveAction && data?.lawyer?.needsWork && judge.serverKey) after(() => processLawyerWork(auth.db, judge.serverKey).then(() => {}));
+      if (!archiveAction && data?.judge?.needsWork && judge.serverKey) {
         // The response exposes only the persisted pending job. Work survives the
         // response lifecycle; a database claim prevents refreshes duplicating it.
         after(() => processJudgeWork(auth.db, judge.serverKey).then(() => {}));
       }
-      response = NextResponse.json({ room: data, ...(data ? { realtime: { url, key, accessToken: auth.access } } : {}) });
+      response = NextResponse.json(action === "resultsHistory" ? { history: data } : action === "resultsAcknowledge" ? { results: data }
+        : { room: data, ...(data ? { realtime: { url, key, accessToken: auth.access } } : {}) });
     }
   } catch (error) {
     const known = error instanceof RoomError;
