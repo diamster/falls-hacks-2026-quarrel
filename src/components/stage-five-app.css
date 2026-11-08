@@ -1,12 +1,5 @@
-.stage-five-setting {display:flex;justify-content:space-between;align-items:center;gap:1rem;padding:.85rem 0 1.1rem;font-size:.9rem;}
-.stage-five-setting :is(a,button) {display:inline-flex;align-items:center;gap:.5rem;font-weight:700;text-underline-offset:4px;}
-.stage-five-setting svg {width:1rem;height:1rem;}
-.stage-five-room-details {margin-top:1.5rem;}
-.stage-five-room-details > summary {cursor:pointer;padding:1rem;border:2px solid var(--border);background:var(--paper);font-weight:700;}
-.stage-five-room-details .room-panel {margin-top:1rem;max-width:36rem;}
 .stage-five-legacy {padding:1.25rem;margin-bottom:1.5rem;}
 .stage-five-legacy h2 {font-family:var(--font-pixel);font-size:1.8rem;}
-@media(max-width:600px){.stage-five-setting{align-items:flex-start;flex-direction:column;}.stage-five-shell .site-header nav{gap:.6rem;}.stage-five-shell .site-header nav a{font-size:.8rem;}}
 
 /* One-screen lobby (Stage 5 content on the full-screen layout in globals.css). */
 .theme-shell[data-theme].theme-shell--fit .lobby-column {
@@ -26,7 +19,6 @@
 .lobby-setting-body .pixel-button {justify-self:start;}
 .theme-shell--fit .stage-five-legacy h2 {font-size:1.3rem;color:var(--lb-head);}
 .theme-shell--fit .stage-five-legacy p {font-size:12px;line-height:1.55;margin-top:6px;}
-.theme-shell--fit .site-footer>span:last-child {text-align:right;}
 .theme-shell[data-theme].theme-shell--fit .lobby-column [aria-label="Confirmed positions"] {grid-template-columns:1fr;gap:10px;}
 .theme-shell[data-theme].theme-shell--fit .lobby-column [aria-label="Confirmed positions"]>div {padding:10px 12px;}
 .theme-shell[data-theme].theme-shell--fit .lobby-column [aria-label="Confirmed positions"]>div>p:nth-child(2) {font-size:13px;line-height:1.55;margin:6px 0;}
@@ -34,6 +26,43 @@
 @media(max-width:600px){.theme-shell[data-theme].stage-five-shell .header-inner nav{gap:12px;font-size:11px}.theme-shell[data-theme].stage-five-shell .header-inner nav :is(a,button){font-size:11px}.theme-shell[data-theme].stage-five-shell .header-inner{gap:10px}}
 @media(max-width:380px){.theme-shell[data-theme].stage-five-shell .brand{font-size:19px}.theme-shell[data-theme].stage-five-shell .brand-mark{width:26px;height:26px}}
 .theme-shell[data-theme].theme-shell--fit .lobby-column [aria-labelledby="lawyer-setup-title"]>div:not(.section-heading)>div:last-child {flex-direction:column;align-items:stretch;gap:12px;}
-/* Started debate: tighter page padding so clocks, scene and input share the first screen. */
-.stage-five-debate {padding-top:16px;}
-@media(max-width:600px){.stage-five-debate{padding-top:12px;}}
+
+/* Lobby title: the wordmark when there is no topic yet, otherwise the topic itself. */
+.theme-shell[data-theme].theme-shell--fit .lobby-title h1.lobby-wordmark {margin:0;}
+.theme-shell[data-theme].theme-shell--fit .lobby-title .topic-copy h1 {margin-top:6px;font-family:var(--font-pixel);font-size:clamp(26px,3vw,42px);font-weight:600;letter-spacing:0;line-height:1.1;text-transform:none;color:var(--lb-head);text-shadow:0 3px 0 #0009;max-width:min(680px,100%);overflow-wrap:anywhere;}
+/* Panels ease in when the lobby changes (start screen, room, saved room). */
+.theme-shell--fit .lobby-column>* {animation:lobby-panel-in .35s ease-out both;}
+@keyframes lobby-panel-in {from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* ==========================================================================
+   Game: no header. The logo and a menu float over the top edge; the game
+   (LawyerDebateView) fills the rest of the viewport.
+   ========================================================================== */
+.theme-shell.game-shell {position:relative;height:100dvh;min-height:0;display:flex;flex-direction:column;overflow:hidden;}
+.game-overlay {position:absolute;z-index:30;top:0;left:0;right:0;height:48px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 20px;pointer-events:none;}
+.game-overlay>* {pointer-events:auto;}
+.game-overlay .brand {font-size:22px;gap:8px;}
+.game-overlay .brand-mark {width:28px;height:28px;box-shadow:2px 2px 0 var(--ink);}
+.game-overlay .brand-mark .pixel-icon {width:18px;height:18px;}
+.game-stage {flex:1;min-height:0;width:100%;max-width:1480px;margin:0 auto;padding:52px 20px 14px;overflow-y:auto;overscroll-behavior:contain;outline:none;}
+.game-stage>.room-error {margin-bottom:10px;}
+.game-menu {position:relative;}
+.game-menu-toggle {display:inline-flex;align-items:center;gap:8px;min-height:34px;padding:5px 10px;border:2px solid var(--ink);background:var(--paper);color:var(--ink);font-size:12px;font-weight:750;cursor:pointer;box-shadow:2px 2px 0 var(--ink);}
+.game-menu-toggle .pixel-icon {width:14px;height:14px;}
+.game-menu-toggle[aria-expanded="true"] {background:var(--theme-accent);color:var(--theme-accent-ink);}
+.game-menu-code {font-family:var(--font-pixel);font-size:15px;letter-spacing:2px;padding-right:8px;border-right:1px solid var(--line);}
+.game-menu-toggle:focus-visible,.game-menu-actions button:focus-visible {outline:3px solid var(--ink);outline-offset:2px;}
+.game-menu-panel {position:absolute;right:0;top:calc(100% + 8px);width:min(360px,calc(100vw - 24px));max-height:calc(100dvh - 72px);overflow-y:auto;background:var(--paper);color:var(--ink);box-shadow:4px 4px 0 var(--ink);}
+.game-menu-panel[hidden] {display:none;}
+.game-menu-actions {display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px;border-bottom:1px solid var(--line);}
+.game-menu-actions button {min-height:40px;border:2px solid var(--ink);background:var(--theme-panel,var(--paper));color:var(--ink);font-size:12px;font-weight:750;cursor:pointer;}
+.game-menu-actions button:hover {background:var(--theme-accent);color:var(--theme-accent-ink);}
+.game-menu-panel .room-panel {border:0;box-shadow:none;margin:0;}
+/* Arriving from the lobby: a short zoom into the courtroom. Reduced motion turns this into an instant swap. */
+.game-shell--entering .game-stage {animation:game-enter .55s cubic-bezier(.2,.7,.2,1) both;}
+.game-shell--entering .game-overlay {animation:game-overlay-in .35s .25s ease-out both;}
+@keyframes game-enter {from{opacity:0;transform:scale(1.06);filter:blur(3px)}to{opacity:1;transform:none;filter:none}}
+@keyframes game-overlay-in {from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+@media(max-width:600px){.game-overlay{padding:0 12px;height:44px}.game-overlay .brand{font-size:19px}.game-stage{padding:48px 12px 12px}.game-menu-code{font-size:13px;letter-spacing:1px}}
+/* The room code lives in the room panel (lobby) and on the Menu button (game), so the scene doesn't repeat it. */
+.theme-shell--fit .court-room-code,.game-shell .court-room-code {display:none;}

@@ -46,7 +46,7 @@ export function ShareInvite({ code, issue }: { code: string | null; issue: "miss
   }
 
   return <div className={styles.shell} style={themeStyles(theme)} data-theme={theme.id}>
-    <Link className={styles.brand} href="/?start=1" aria-label="quarrel.io home"><span className={styles.brandMark}><PixelIcon name="chat"/></span>quarrel.io</Link>
+    <Link className={styles.brand} href="/?start=1" aria-label="Quarrel home"><span className={styles.brandMark}><PixelIcon name="chat"/></span>Quarrel</Link>
     <main className={styles.card} aria-labelledby="invite-title">
       <div className={styles.heading}>
         <span className={styles.seal} aria-hidden="true"><PixelIcon name="gavel"/></span>
@@ -76,7 +76,7 @@ export function ShareInvite({ code, issue }: { code: string | null; issue: "miss
                 <p id="invite-note" className={styles.note}>Your name is shown to the other player. No account needed.</p>
               </form>}
       </div>}
-      <footer className={styles.footer}><Link href="/?start=1">Back to start</Link><span>Two voices. A fair hearing.</span></footer>
+      <footer className={styles.footer}><Link href="/?start=1">Back to start</Link></footer>
     </main>
   </div>;
 }

@@ -5,7 +5,7 @@ import "./globals.css";
 import { DisplayPreferencesProvider } from "@/components/display-preferences";
 
 export const metadata: Metadata = {
-  title: "quarrel.io — Four worlds. One fair hearing.",
+  title: "Quarrel",
   description: "Private two-player rooms in four original pixel-art worlds: Jungle, Superhero, Detective and Courtroom.",
 };
 

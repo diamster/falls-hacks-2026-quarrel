@@ -23,7 +23,7 @@ export function RoomEntry({ pending, initialCode, onCreate, onJoin, theme = getT
   return <section className="room-panel pixel-panel" aria-labelledby="room-entry-title">
     <SectionHeading eyebrow={theme.ui.seatLabel}>Meet in a private room</SectionHeading>
     <div className="room-panel-body">
-      <p id="room-entry-title" className="room-intro">Two players. One invitation. No account needed.</p>
+      <p id="room-entry-title" className="room-intro">No account needed.</p>
       <div className="room-mode-switch" aria-label="Room action">
         <button type="button" aria-pressed={mode === "create"} disabled={pending} onClick={() => setMode("create")}>Create a room</button>
         <button type="button" aria-pressed={mode === "join"} disabled={pending} onClick={() => setMode("join")}>Join a room</button>
@@ -99,7 +99,7 @@ export function RoomLobby({ room, pending, offline, live, onReady, onLeave, read
       </ul>
       {started ? <p className="room-sync-note">{(room.lawyer?.phase === "complete" || room.debate?.phase === "verdict") ? "All rounds are complete. Your room and record remain available." : "The debate is underway. Your seats and agreed positions are locked."}</p> : <PixelButton tone={you?.ready ? "cream" : "green"} disabled={pending || offline || !you || Boolean(room.lawyer && !(room.you === "A" ? room.lawyer.confirmedA : room.lawyer.confirmedB))} aria-pressed={you?.ready ?? false} onClick={() => onReady(!you?.ready)}>{pending ? "Updating…" : you?.ready ? "I’m not ready" : "I’m ready"}</PixelButton>}
       <p className="room-sync-note" role="status">{offline ? "Connection lost. Reconnecting…" : live ? "Live room updates connected." : "Connecting live updates. Checking the room every 10 seconds."}</p>
-      <p className="room-fine-print">Your seat survives a refresh in this browser. Keep the invitation private. Disconnections appear within about 45 seconds.</p>
+      <p className="room-fine-print">Keep the invitation private; anyone with it can take the empty seat.</p>
       {onLeave && <LeaveRoomControl pending={pending} offline={offline} onLeave={onLeave}/>}
     </div>
   </section>;

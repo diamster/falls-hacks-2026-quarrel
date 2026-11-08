@@ -37,7 +37,11 @@ describe("Public Stage 5 application", () => {
     expect(screen.queryByRole("radiogroup", { name: "Room theme" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Create private room" })).toBeDisabled();
     expect(screen.queryByRole("button", { name: /Ask Judge|Objection|Submit argument/ })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Art preview/ })).toHaveAttribute("href", "/preview");
+    expect(screen.queryByRole("link", { name: /Art preview/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Quarrel home" })).toHaveTextContent("Quarrel");
+    for (const region of [document.querySelector("header.site-header"), document.querySelector(".lobby-title")]) expect(region).not.toHaveTextContent(/quarrel\.io|STAGE 05|Digital Sidekick|A fair hearing|Your voice\.|Equal consideration/i);
+    expect(document.querySelector(".site-footer")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Pause animation/ })).not.toBeInTheDocument();
   });
 
   it("opens Settings as a popup over the lobby with the shared theme picker, and closes it again", async () => {
@@ -101,10 +105,36 @@ describe("Public Stage 5 application", () => {
     expect(session.startDebate).not.toHaveBeenCalled();
   });
 
+  it("shows the game without a header: logo plus a menu holding room controls, closed by Escape", async () => {
+    const user = userEvent.setup(); mockedClient.mockReturnValue(client(room(active()))); const view = render(tree());
+    expect(view.container.querySelector(".game-shell")).not.toHaveClass("game-shell--entering");
+    expect(screen.getByRole("link", { name: "Quarrel home" })).toBeInTheDocument();
+    const toggle = screen.getByRole("button", { name: /Menu/ });
+    expect(toggle).toHaveTextContent("ABC234"); expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("button", { name: "Copy invite link" })).not.toBeInTheDocument();
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: "Copy invite link" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Leave this room" })).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(toggle).toHaveAttribute("aria-expanded", "false"); expect(toggle).toHaveFocus();
+    await user.click(toggle); await user.click(document.body);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("plays the entrance only when this tab moves from the lobby into the game", () => {
+    let session = client(room()); mockedClient.mockReturnValue(session); window.history.replaceState({}, "", "/?room=ABC234"); const view = render(tree());
+    expect(view.container.querySelector(".theme-shell--fit")).not.toBeNull();
+    session = client(room(active())); mockedClient.mockReturnValue(session); view.rerender(tree());
+    expect(view.container.querySelector(".game-shell")).toHaveClass("game-shell--entering");
+  });
+
   it("opens the Settings popup from a running debate without leaving the courtroom", async () => {
     const user = userEvent.setup(); mockedClient.mockReturnValue(client(room(active(), { themeLocked: true }))); render(tree());
     const dialog = document.querySelector("dialog.settings-dialog")!;
     expect(screen.queryByRole("button", { name: /Settings · Courtroom|Display settings/ })).not.toBeInTheDocument();
+    expect(document.querySelector("header.site-header")).toBeNull();
+    await user.click(screen.getByRole("button", { name: /Menu/ }));
     expect(screen.getAllByRole("button", { name: /Settings/ })).toHaveLength(1);
     await user.click(screen.getByRole("button", { name: "Settings" }));
     expect(dialog).toHaveAttribute("open");
@@ -112,6 +142,7 @@ describe("Public Stage 5 application", () => {
     expect(within(dialog as HTMLElement).getByText(/The debate has started, so its theme is locked/)).toBeInTheDocument();
     await user.click(within(dialog as HTMLElement).getByRole("button", { name: "Close settings" }));
     expect(dialog).not.toHaveAttribute("open");
+    await user.click(screen.getByRole("button", { name: /Menu/ }));
     await user.click(screen.getByRole("button", { name: "Settings" }));
     expect(dialog).toHaveAttribute("open");
     expect(screen.getByRole("timer", { name: "Player A: 47 seconds remaining" })).toBeInTheDocument();
@@ -144,7 +175,7 @@ describe("Public Stage 5 application", () => {
     session = client(room(active({ activeSlot: "B" }))); mockedClient.mockReturnValue(session); view.rerender(tree());
     expect(screen.getByRole("button", { name: "Resume room" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Resume room" })); expect(screen.getByRole("textbox", { name: /Argument for my lawyer/ })).toBeDisabled();
-    await user.click(screen.getByRole("link", { name: "Back to start" })); expect(screen.getByRole("button", { name: "Resume room" })).toBeInTheDocument(); expect(window.location.search).toBe("?start=1");
+    await user.click(screen.getByRole("button", { name: /Menu/ })); await user.click(screen.getByRole("button", { name: "Back to start" })); expect(screen.getByRole("button", { name: "Resume room" })).toBeInTheDocument(); expect(window.location.search).toBe("?start=1");
   });
 
   it("requires leave confirmation before creating another room and keeps a failed leave recoverable", async () => {

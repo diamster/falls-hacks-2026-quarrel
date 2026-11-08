@@ -6,6 +6,8 @@ import "./display-preferences.css";
 export interface DisplayPreferences {
   pauseAnimations: boolean;
   reducedMotion: boolean;
+  /** Play animations even when the device asks for reduced motion (the in-app Reduce motion still wins). */
+  ignoreDeviceMotion: boolean;
   textSize: "standard" | "large";
 }
 
@@ -13,6 +15,7 @@ export const displayPreferencesKey = "quarrel-display-preferences-v1";
 export const defaultDisplayPreferences: Readonly<DisplayPreferences> = Object.freeze({
   pauseAnimations: false,
   reducedMotion: false,
+  ignoreDeviceMotion: false,
   textSize: "standard",
 });
 
@@ -24,6 +27,7 @@ function readPreferences(value: string | null): DisplayPreferences {
     return {
       pauseAnimations: fields.pauseAnimations === true,
       reducedMotion: fields.reducedMotion === true,
+      ignoreDeviceMotion: fields.ignoreDeviceMotion === true,
       textSize: fields.textSize === "large" ? "large" : "standard",
     };
   } catch {
@@ -71,7 +75,7 @@ export function DisplayPreferencesProvider({ children }: { children: ReactNode }
   }, []);
 
   return <DisplayPreferencesContext.Provider value={{ preferences, updatePreferences, storageAvailable }}>
-    <div className="display-preferences" data-pause-animations={preferences.pauseAnimations} data-reduced-motion={preferences.reducedMotion} data-text-size={preferences.textSize}>
+    <div className="display-preferences" data-pause-animations={preferences.pauseAnimations} data-reduced-motion={preferences.reducedMotion} data-device-motion={preferences.ignoreDeviceMotion ? "ignore" : "follow"} data-text-size={preferences.textSize}>
       {children}
     </div>
   </DisplayPreferencesContext.Provider>;

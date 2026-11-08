@@ -31,3 +31,33 @@ Also: a compact argument input (title says when it's your turn, status on the sa
 ## Backend notes (not changed here)
 
 None required for these fixes.
+
+## Session 1 (shell): home page, header, branding, transitions
+
+Branch `quarrel-ui-shell`, from `quarrel-ui-rework` at `774bdc5`. Frontend only.
+
+**Changes**
+- **Name:** "Quarrel" in the logo, lobby wordmark, browser title, Settings page and invite page. The URL is unchanged. The legacy Stage 4 screen and the Stage 1 `/preview` page keep their original text (preserved as-is per `AGENTS.md`).
+- **Filler removed:** "Your voice. A fair hearing." and the divider beside the logo; the "STAGE 05 / YOUR LAWYER SIDEKICK" badge; the "Art preview" link; the lobby footer (theme tagline such as "Different views. Equal consideration.", "Digital Sidekick · Stage 5 …"); "A fair hearing. A shared starting line."; "Every great debate starts with hello." (replaced by the Quarrel wordmark, or the topic once set); "Two players. One invitation."; "FOUR WORLDS. ONE FAIR HEARING." in the theme picker; "Two voices. A fair hearing." on the invite page; the scene's "LOBBY / TAKE YOUR SEAT" pill in the lobby; the duplicate room-code pill in the scene (the code is in the room panel and on the game Menu).
+- **Home header:** logo, Start/Back to start and Settings only; no background bar.
+- **Game:** no header. The logo sits top-left and a **Menu** button (showing the room code) top-right; its popover holds Settings, Back to start and the room panel (invite link, players, connection, Leave). Escape or clicking outside closes it. The game fills the viewport (`.game-shell`, `100dvh`); `LawyerDebateView` renders in `.game-stage`, which scrolls internally until Session 2 makes the game fit its height.
+- **Transition:** moving from the lobby into a started game in the same tab plays a 0.55 s zoom/fade into the courtroom (decided during render, so there is no flash). Reloading straight into a game doesn't animate. Lobby panels ease in when they change.
+- **Pause animation** button removed from the home page (Settings has "Pause artwork animations").
+- **Why there seemed to be no animation:** this laptop's Windows setting asks for reduced motion, and the app honoured it by stopping all animation. Settings now has **"Play animations even if my device asks for less motion"** (browser-only preference `ignoreDeviceMotion`, default off; disabled while the in-app "Reduce motion" is on). With it ticked, idle animations and the game entrance run. The device setting is still respected by default.
+
+**Files:** `stage-five-app.tsx`/`.css`, new `game-menu.tsx`, `settings-page.tsx`, `display-preferences.tsx`, `room-controls.tsx`, `share-invite.tsx`/`.module.css`, `theme-selector.tsx`, `src/app/layout.tsx`, `src/app/globals.css` (the reduced-motion rule only), tests `stage-five-app.test.tsx`, `settings.test.tsx`.
+
+**Verification**
+
+| Check | Result | Limits |
+| --- | --- | --- |
+| `tsc --noEmit`, `npm run build` | PASS | Windows Node. |
+| Coverage suite excl. `judge-config.test.ts` | **562 passed, 5 skipped**; 96.02 / 93.31 / 94.89 / 98.03 % | `judge-config` fails only on Windows. |
+| Updated tests | Intended changes only | Art preview link now asserted absent; in-game Settings/Back to start are reached through Menu; stored preferences include `ignoreDeviceMotion`. |
+| New tests | PASS | No header/footer/filler on the start screen; game menu (contents, Escape returns focus, outside click); entrance only after lobby to game; the motion option and its storage. |
+| Browser | All four themes; 1440×900, 1024×768, 390×844; game menu open; Settings motion option; invite page | Headless Chrome with stubbed room fixtures. A lobby-to-game switch confirmed the `game-enter` animation and idle `theme-idle` animation run with the option on (the machine reports reduced motion). Screenshots: `docs/screenshots/ui-shell-*.png`. |
+
+**For Session 2 / later (not changed here, outside this session's files)**
+- The "Debate scene with counsel" block in `globals.css` has its own `prefers-reduced-motion` rule; scope it like the global one (`.display-preferences:not([data-device-motion="ignore"]) …`) so the motion option also covers lawyer/jury animation.
+- Filler candidates in game files: the history panel's "Shared with both players. Private consultations stay separate." and the composer fine print; the courtroom bench plaque reads "A FAIR HEARING" (`theme.ui.benchCaption`). Theme configs still contain `ui.tagline`, now unused by these screens.
+- No backend changes needed.

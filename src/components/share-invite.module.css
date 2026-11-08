@@ -95,5 +95,7 @@
   .eyebrow { font-size: 10px; letter-spacing: 1px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .shell *, .shell *::before, .shell *::after { animation: none !important; transition: none !important; }
+  :global(.display-preferences:not([data-device-motion="ignore"])) .shell *,
+  :global(.display-preferences:not([data-device-motion="ignore"])) .shell *::before,
+  :global(.display-preferences:not([data-device-motion="ignore"])) .shell *::after { animation: none !important; transition: none !important; }
 }

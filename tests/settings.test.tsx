@@ -86,6 +86,17 @@ describe("Dedicated settings page", () => {
 });
 
 describe("Personal display preferences", () => {
+  it("offers to play animations despite the device setting, disabled while Reduce motion is on", async () => {
+    const user = userEvent.setup(); showSettings();
+    const anyway = screen.getByRole("checkbox", { name: /Play animations even if my device asks for less motion/ });
+    expect(anyway).not.toBeChecked();
+    await user.click(anyway); expect(anyway).toBeChecked();
+    expect(document.querySelector(".display-preferences")).toHaveAttribute("data-device-motion", "ignore");
+    expect(JSON.parse(window.localStorage.getItem(displayPreferencesKey)!)).toMatchObject({ ignoreDeviceMotion: true });
+    await user.click(screen.getByRole("checkbox", { name: /Reduce motion/ }));
+    expect(anyway).toBeDisabled();
+  });
+
   it("persists local display choices across remounts without calling room mutations", async () => {
     const user = userEvent.setup(); const session = client(); mockedClient.mockReturnValue(session);
     const view = showSettings();
@@ -96,7 +107,7 @@ describe("Personal display preferences", () => {
     expect(wrapper).toHaveAttribute("data-pause-animations", "true");
     expect(wrapper).toHaveAttribute("data-reduced-motion", "true");
     expect(wrapper).toHaveAttribute("data-text-size", "large");
-    expect(JSON.parse(window.localStorage.getItem(displayPreferencesKey)!)).toEqual({ pauseAnimations: true, reducedMotion: true, textSize: "large" });
+    expect(JSON.parse(window.localStorage.getItem(displayPreferencesKey)!)).toEqual({ pauseAnimations: true, reducedMotion: true, ignoreDeviceMotion: false, textSize: "large" });
     expect(session.setTheme).not.toHaveBeenCalled();
     view.unmount(); showSettings();
     expect(screen.getByRole("checkbox", { name: /Pause artwork animations/ })).toBeChecked();

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRoomClient } from "@/lib/room-client";
 import { getTheme } from "@/themes";
 import { themeStyles } from "@/themes/styles";
@@ -14,6 +14,14 @@ type RoomSession = ReturnType<typeof useRoomClient>;
 /** Shared room theme and personal display preferences, used by the Settings popup and the /settings page. */
 export function SettingsPanel({ session }: { session: RoomSession }) {
   const { preferences, updatePreferences, storageAvailable } = useDisplayPreferences();
+  const [deviceReducesMotion, setDeviceReducesMotion] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    if (!query) return;
+    const update = () => setDeviceReducesMotion(query.matches); update();
+    query.addEventListener?.("change", update);
+    return () => query.removeEventListener?.("change", update);
+  }, []);
   const room = session.room;
   const theme = getTheme(room?.themeId);
   const locked = Boolean(room?.themeLocked || room?.debate?.startedAt);
@@ -32,7 +40,8 @@ export function SettingsPanel({ session }: { session: RoomSession }) {
       <div className="settings-body">
         <p>These controls change your view only. They never pause debate clocks, change another player’s view, or affect how arguments are evaluated.</p>
         <label className="settings-checkbox"><input type="checkbox" checked={preferences.pauseAnimations} onChange={event => updatePreferences({ pauseAnimations: event.target.checked })}/><span><strong>Pause artwork animations</strong><small>Keep characters and decorative animation still.</small></span></label>
-        <label className="settings-checkbox"><input type="checkbox" checked={preferences.reducedMotion} onChange={event => updatePreferences({ reducedMotion: event.target.checked })}/><span><strong>Reduce motion</strong><small>Remove movement and transitions. Your device’s reduced-motion preference is also respected.</small></span></label>
+        <label className="settings-checkbox"><input type="checkbox" checked={preferences.reducedMotion} onChange={event => updatePreferences({ reducedMotion: event.target.checked })}/><span><strong>Reduce motion</strong><small>Remove movement and transitions.</small></span></label>
+        <label className="settings-checkbox"><input type="checkbox" checked={preferences.ignoreDeviceMotion} disabled={preferences.reducedMotion} onChange={event => updatePreferences({ ignoreDeviceMotion: event.target.checked })}/><span><strong>Play animations even if my device asks for less motion</strong><small>{deviceReducesMotion ? "Your device is set to reduce motion, so animations are off unless you tick this." : "Your device doesn’t ask for reduced motion right now."}</small></span></label>
         <label className="settings-select" htmlFor="display-text-size"><span><strong>Dialogue and transcript text size</strong><small>Make messages and writing areas easier to read.</small></span><select id="display-text-size" value={preferences.textSize} onChange={event => updatePreferences({ textSize: event.target.value === "large" ? "large" : "standard" })}><option value="standard">Standard</option><option value="large">Large</option></select></label>
         <p className="settings-save-note" role="status">{storageAvailable ? "Display preferences are saved in this browser." : "Browser storage is unavailable. Your preferences still apply in this tab, but may reset when you leave."}</p>
       </div>
@@ -71,7 +80,7 @@ export function SettingsPage() {
   return <div className="theme-shell settings-shell" data-theme={theme.id} style={themeStyles(theme)}>
     <a className="skip-link" href="#settings-content">Skip to settings</a>
     <header className="site-header"><div className="header-inner">
-      <a className="brand" href="/?start=1" aria-label="quarrel.io home"><span className="brand-mark"><PixelIcon name="chat"/></span><span>quarrel<span className="brand-dot">.</span>io</span></a>
+      <a className="brand" href="/?start=1" aria-label="Quarrel home"><span className="brand-mark"><PixelIcon name="chat"/></span><span>Quarrel</span></a>
       <nav aria-label="Main navigation"><a href={roomHref}>{room ? "Back to room" : "Back to start"}</a><a href="/settings" aria-current="page" className="nav-current">Settings</a></nav>
     </div></header>
     <main id="settings-content" className="app-shell settings-content" tabIndex={-1}>
