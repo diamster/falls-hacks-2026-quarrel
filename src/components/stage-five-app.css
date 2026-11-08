@@ -66,3 +66,37 @@
 @media(max-width:600px){.game-overlay{padding:0 12px;height:44px}.game-overlay .brand{font-size:19px}.game-stage{padding:48px 12px 12px}.game-menu-code{font-size:13px;letter-spacing:1px}}
 /* The room code lives in the room panel (lobby) and on the Menu button (game), so the scene doesn't repeat it. */
 .theme-shell--fit .court-room-code,.game-shell .court-room-code {display:none;}
+
+/* ==========================================================================
+   Game HUD: the courtroom fills the screen; the question and clocks float
+   top-centre, the argument input bottom-left, the history on the right.
+   Styled from the shell so the game components themselves stay unchanged.
+   ========================================================================== */
+@media(min-width:761px){
+  .game-shell .game-stage {max-width:none;padding:0;overflow:hidden;position:relative;}
+  .game-shell [aria-label="Lawyer sidekick debate"] {position:absolute;inset:0;display:block;}
+  .game-shell [aria-label="Lawyer sidekick debate"]>div,
+  .game-shell [aria-label="Lawyer sidekick debate"]>div>div:first-child {display:contents;}
+  .game-shell .debate-arena {position:absolute!important;inset:0;height:100%!important;min-height:0!important;border:0!important;box-shadow:none!important;z-index:0;}
+  /* the cast stands in the open middle, between the input and the history, and scales to that space */
+  .game-shell .debate-arena .court-stage {position:absolute;inset:178px calc(min(300px,24vw) + 24px) 0 calc(min(380px,30vw) + 24px);container:arena/size;}
+  .game-shell .debate-arena .judge-speech {top:4px!important;width:min(420px,90%)!important;max-width:none!important;}
+  .game-shell :is([aria-label="Lawyer sidekick debate"]>header,[aria-label="Player clocks"],div:has(>section[aria-labelledby="present-argument-title"]),aside[aria-labelledby],section[role="status"],section[aria-labelledby="jury-decision-title"]) {position:absolute;z-index:10;}
+  /* clocks on top, the question under them; both stay in the open space between the side panels */
+  .game-shell :is([aria-label="Player clocks"],[aria-label="Lawyer sidekick debate"]>header) {left:calc(min(380px,30vw) + 24px);right:calc(min(300px,24vw) + 24px);margin:0 auto;max-width:760px;}
+  .game-shell [aria-label="Player clocks"] {top:10px;}
+  .game-shell [aria-label="Lawyer sidekick debate"]>header {top:78px;padding:8px 14px;align-items:center;background:color-mix(in srgb,var(--paper) 90%,transparent);border:2px solid var(--ink);box-shadow:3px 3px 0 #0003;backdrop-filter:blur(6px);}
+  .game-shell [aria-label="Lawyer sidekick debate"]>header h2 {font-size:22px;}
+  /* argument input: bottom left */
+  .game-shell div:has(>section[aria-labelledby="present-argument-title"]) {left:16px;bottom:16px;width:min(380px,30vw);max-height:calc(100% - 140px);overflow-y:auto;display:grid;gap:8px;}
+  .game-shell section[aria-labelledby="present-argument-title"],.game-shell div:has(>section[aria-labelledby="present-argument-title"])>details {background:color-mix(in srgb,var(--paper) 92%,transparent);backdrop-filter:blur(6px);}
+  .game-shell section[aria-labelledby="present-argument-title"] textarea {min-height:64px;}
+  .game-shell section[aria-labelledby="present-argument-title"] form>p:not([role]) {display:none;}
+  /* phase notices bottom left; verdict centred */
+  .game-shell section[role="status"] {left:16px;bottom:16px;width:min(380px,30vw);}
+  .game-shell section[aria-labelledby="jury-decision-title"] {left:50%;top:50%;transform:translate(-50%,-50%);width:min(640px,calc(100% - 420px));max-height:calc(100% - 120px);overflow-y:auto;}
+  /* history: right side, under the menu */
+  .game-shell aside[aria-labelledby] {position:absolute!important;top:56px;right:16px;bottom:16px;width:min(300px,24vw);max-height:none!important;background:color-mix(in srgb,var(--paper) 92%,transparent);backdrop-filter:blur(6px);}
+}
+@media(min-width:761px) and (max-width:1180px){.game-shell [aria-label="Lawyer sidekick debate"]>header h2{font-size:18px}.game-shell .debate-arena .court-stage{top:206px}}
+.game-overlay .brand {color:#fff;text-shadow:0 2px 0 #000a,0 0 6px #0008;}
