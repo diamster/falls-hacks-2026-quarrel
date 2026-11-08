@@ -44,7 +44,7 @@
 .game-overlay .brand {font-size:22px;gap:8px;}
 .game-overlay .brand-mark {width:28px;height:28px;box-shadow:2px 2px 0 var(--ink);}
 .game-overlay .brand-mark .pixel-icon {width:18px;height:18px;}
-.game-stage {flex:1;min-height:0;width:100%;max-width:1480px;margin:0 auto;padding:52px 20px 14px;overflow-y:auto;overscroll-behavior:contain;outline:none;}
+.game-stage {flex:1;min-height:0;width:100%;padding:0;overflow:hidden;outline:none;}
 .game-stage>.room-error {margin-bottom:10px;}
 .game-menu {position:relative;}
 .game-menu-toggle {display:inline-flex;align-items:center;gap:8px;min-height:34px;padding:5px 10px;border:2px solid var(--ink);background:var(--paper);color:var(--ink);font-size:12px;font-weight:750;cursor:pointer;box-shadow:2px 2px 0 var(--ink);}
@@ -63,69 +63,15 @@
 .game-shell--entering .game-overlay {animation:game-overlay-in .35s .25s ease-out both;}
 @keyframes game-enter {from{opacity:0;transform:scale(1.06);filter:blur(3px)}to{opacity:1;transform:none;filter:none}}
 @keyframes game-overlay-in {from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
-@media(max-width:600px){.game-overlay{padding:0 12px;height:44px}.game-overlay .brand{font-size:19px}.game-stage{padding:48px 12px 12px}.game-menu-code{font-size:13px;letter-spacing:1px}}
+@media(max-width:600px){.game-overlay{padding:0 12px;height:44px}.game-overlay .brand{font-size:19px}.game-menu-code{font-size:13px;letter-spacing:1px}}
 /* The room code lives in the room panel (lobby) and on the Menu button (game), so the scene doesn't repeat it. */
 .theme-shell--fit .court-room-code,.game-shell .court-room-code {display:none;}
 
-/* ==========================================================================
-   Game HUD: the courtroom fills the screen; the question and clocks float
-   top-centre, the argument input bottom-left, the history on the right.
-   Styled from the shell so the game components themselves stay unchanged.
-   ========================================================================== */
-@media(min-width:761px){
-  .game-shell .game-stage {max-width:none;padding:0;overflow:hidden;position:relative;}
-  .game-shell [aria-label="Lawyer sidekick debate"] {position:absolute;inset:0;display:block;}
-  .game-shell [aria-label="Lawyer sidekick debate"]>div,
-  .game-shell [aria-label="Lawyer sidekick debate"]>div>div:first-child {display:contents;}
-  .game-shell .debate-arena {position:absolute!important;inset:0;height:100%!important;min-height:0!important;border:0!important;box-shadow:none!important;z-index:0;}
-  /* the cast stands in the open middle, between the input and the history, and scales to that space */
-  .game-shell .debate-arena .court-stage {position:absolute;inset:178px calc(min(300px,24vw) + 24px) 0 calc(min(380px,30vw) + 24px);container:arena/size;}
-  /* the judge's bubble sits just above the judge, at the cast's scale, so it never runs under the question */
-  .game-shell .debate-arena .judge-speech {--sh:1;--sw:1;--s:min(var(--sh),var(--sw));top:auto!important;bottom:calc(306px * var(--s) + 8px)!important;width:min(340px,58%)!important;max-width:none!important;max-height:30%!important;}
-  .game-shell :is([aria-label="Lawyer sidekick debate"]>header,[aria-label="Player clocks"],div:has(>section[aria-labelledby="present-argument-title"]),aside[aria-labelledby],section[role="status"],section[aria-labelledby="jury-decision-title"]) {position:absolute;z-index:10;}
-  /* clocks on top, the question under them; both stay in the open space between the side panels */
-  .game-shell :is([aria-label="Player clocks"],[aria-label="Lawyer sidekick debate"]>header) {left:calc(min(380px,30vw) + 24px);right:calc(min(300px,24vw) + 24px);margin:0 auto;max-width:760px;}
-  .game-shell [aria-label="Player clocks"] {top:10px;}
-  .game-shell [aria-label="Lawyer sidekick debate"]>header {top:78px;padding:8px 14px;align-items:center;background:color-mix(in srgb,var(--paper) 90%,transparent);border:2px solid var(--ink);box-shadow:3px 3px 0 #0003;backdrop-filter:blur(6px);}
-  .game-shell [aria-label="Lawyer sidekick debate"]>header h2 {font-size:22px;}
-  /* argument input: bottom left */
-  .game-shell div:has(>section[aria-labelledby="present-argument-title"]) {left:16px;bottom:16px;width:min(380px,30vw);max-height:calc(100% - 140px);overflow-y:auto;display:grid;gap:8px;}
-  .game-shell section[aria-labelledby="present-argument-title"],.game-shell div:has(>section[aria-labelledby="present-argument-title"])>details {background:color-mix(in srgb,var(--paper) 92%,transparent);backdrop-filter:blur(6px);}
-  .game-shell section[aria-labelledby="present-argument-title"] textarea {min-height:64px;}
-  .game-shell section[aria-labelledby="present-argument-title"] form>p:not([role]) {display:none;}
-  /* phase notices bottom left; verdict centred */
-  .game-shell section[role="status"] {left:16px;bottom:16px;width:min(380px,30vw);}
-  .game-shell section[aria-labelledby="jury-decision-title"] {left:50%;top:50%;transform:translate(-50%,-50%);width:min(640px,calc(100% - 420px));max-height:calc(100% - 120px);overflow-y:auto;}
-  /* history: right side, under the menu */
-  .game-shell aside[aria-labelledby] {position:absolute!important;top:56px;right:16px;bottom:16px;width:min(300px,24vw);max-height:none!important;background:color-mix(in srgb,var(--paper) 92%,transparent);backdrop-filter:blur(6px);}
-}
-@media(min-width:761px) and (max-width:1180px){.game-shell [aria-label="Lawyer sidekick debate"]>header h2{font-size:18px}.game-shell .debate-arena .court-stage{top:206px}}
 .game-overlay .brand {color:#fff;text-shadow:0 2px 0 #000a,0 0 6px #0008;}
-/* same scale steps as the cast (globals.css), applied to the bubble */
-@container arena (max-height:500px) {.game-shell .debate-arena .judge-speech {--sh:0.9;}}
-@container arena (max-height:450px) {.game-shell .debate-arena .judge-speech {--sh:0.8;}}
-@container arena (max-height:400px) {.game-shell .debate-arena .judge-speech {--sh:0.72;}}
-@container arena (max-height:360px) {.game-shell .debate-arena .judge-speech {--sh:0.64;}}
-@container arena (max-height:320px) {.game-shell .debate-arena .judge-speech {--sh:0.56;}}
-@container arena (max-height:280px) {.game-shell .debate-arena .judge-speech {--sh:0.5;}}
-@container arena (max-width:900px) {.game-shell .debate-arena .judge-speech {--sw:0.86;}}
-@container arena (max-width:760px) {.game-shell .debate-arena .judge-speech {--sw:0.74;}}
-@container arena (max-width:640px) {.game-shell .debate-arena .judge-speech {--sw:0.62;}}
-@container arena (max-width:520px) {.game-shell .debate-arena .judge-speech {--sw:0.52;}}
-@container arena (max-width:420px) {.game-shell .debate-arena .judge-speech {--sw:0.44;}}
-/* HUD v2: a long, low input bar along the bottom; the cast gets all the room above it at full size. */
-@media(min-width:761px){
-  .game-shell div:has(>section[aria-labelledby="present-argument-title"]),.game-shell section[role="status"] {left:16px;right:calc(min(300px,24vw) + 32px);bottom:16px;width:auto;max-height:none;overflow:visible;}
-  .game-shell div:has(>section[aria-labelledby="present-argument-title"]) {display:grid;grid-template-columns:minmax(0,1fr) minmax(170px,220px);align-items:end;gap:8px;}
-  .game-shell section[aria-labelledby="present-argument-title"] form {padding:8px 12px 10px;gap:6px;}
-  .game-shell section[aria-labelledby="present-argument-title"] h3 {font-size:17px;}
-  .game-shell section[aria-labelledby="present-argument-title"] h3 span {display:inline;margin:0 0 0 8px;}
-  .game-shell section[aria-labelledby="present-argument-title"] p[role="status"] {position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;}
-  .game-shell section[aria-labelledby="present-argument-title"] textarea {min-height:48px;height:48px;resize:none;}
-  .game-shell div:has(>section[aria-labelledby="present-argument-title"])>details>summary {padding:10px 12px;gap:8px;}
-  .game-shell div:has(>section[aria-labelledby="present-argument-title"])>details>summary>span {font-size:15px;}
-  .game-shell div:has(>section[aria-labelledby="present-argument-title"])>details>summary small {display:none;}
-  .game-shell div:has(>section[aria-labelledby="present-argument-title"])>details[open] {grid-column:1/-1;max-height:50vh;overflow-y:auto;}
-  .game-shell .debate-arena .court-stage {inset:178px calc(min(300px,24vw) + 24px) 150px 16px !important;}
-}
-@media(min-width:761px) and (max-width:1180px){.game-shell .debate-arena .court-stage{top:206px!important}}
+
+.game-stage>.room-error {position:absolute;z-index:9;top:52px;left:50%;transform:translateX(-50%);width:min(560px,calc(100% - 24px));}
+.game-overlay-actions {display:flex;align-items:center;gap:8px;}
+.game-history-toggle {display:inline-flex;align-items:center;gap:8px;min-height:34px;padding:5px 10px;border:2px solid var(--ink);background:var(--paper);color:var(--ink);font-size:12px;font-weight:750;cursor:pointer;box-shadow:2px 2px 0 var(--ink);}
+.game-history-toggle .pixel-icon {width:14px;height:14px;}
+.game-history-toggle[aria-pressed="true"] {background:var(--theme-accent);color:var(--theme-accent-ink);}
+.game-history-toggle:focus-visible {outline:3px solid var(--ink);outline-offset:2px;}

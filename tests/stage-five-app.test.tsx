@@ -21,6 +21,7 @@ function client(current: RoomSnapshot | null, overrides = {}) {
   return { room: current, loading: false, pending: false, offline: false, live: true, error: "", remainingSeconds: 0, lawyerClocks: { A: 47, B: 60 }, judgePending: false,
     refresh: vi.fn().mockResolvedValue(true), create: vi.fn().mockResolvedValue(true), join: vi.fn().mockResolvedValue(true), leaveRoom: vi.fn().mockResolvedValue(true), setTheme: vi.fn().mockResolvedValue(true), setReady: vi.fn().mockResolvedValue(true),
     proposeLawyerTopic: vi.fn().mockResolvedValue(true), setOwnPosition: vi.fn().mockResolvedValue(true), planDebate: vi.fn().mockResolvedValue(true), startLawyerDebate: vi.fn().mockResolvedValue(true), sendToLawyer: vi.fn().mockResolvedValue(true), consultLawyer: vi.fn().mockResolvedValue(true),
+    listResults: vi.fn().mockResolvedValue([]), getResult: vi.fn().mockResolvedValue(null), acknowledgeResults: vi.fn().mockResolvedValue(null), requestRematch: vi.fn().mockResolvedValue(true), retryJury: vi.fn().mockResolvedValue(true),
     askJudge: vi.fn().mockResolvedValue(true), proposeTopic: vi.fn().mockResolvedValue(true), approveTopic: vi.fn().mockResolvedValue(true), requestChanges: vi.fn().mockResolvedValue(true), startDebate: vi.fn().mockResolvedValue(true), submitArgument: vi.fn().mockResolvedValue(true), ...overrides,
   };
 }
@@ -122,6 +123,18 @@ describe("Public Stage 5 application", () => {
     expect(toggle).toHaveAttribute("aria-expanded", "false");
   });
 
+  it("keeps the history in a drawer toggled from the top-right, next to the menu", async () => {
+    const user = userEvent.setup(); mockedClient.mockReturnValue(client(room(active()))); render(tree());
+    const toggle = screen.getByRole("button", { name: /History/ });
+    const drawer = document.getElementById("debate-history-drawer")!;
+    expect(toggle.closest(".game-overlay")).not.toBeNull();
+    expect(toggle).toHaveAttribute("aria-pressed", "false"); expect(drawer).toHaveAttribute("data-open", "false");
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute("aria-pressed", "true"); expect(drawer).toHaveAttribute("data-open", "true");
+    expect(within(drawer).getByRole("log", { name: "Public debate messages" })).toBeInTheDocument();
+    await user.click(toggle); expect(drawer).toHaveAttribute("data-open", "false");
+  });
+
   it("plays the entrance only when this tab moves from the lobby into the game", () => {
     let session = client(room()); mockedClient.mockReturnValue(session); window.history.replaceState({}, "", "/?room=ABC234"); const view = render(tree());
     expect(view.container.querySelector(".theme-shell--fit")).not.toBeNull();
@@ -209,3 +222,20 @@ describe("Public Stage 5 application", () => {
 });
 
 function getThemeName() { return "Traditional pixel-art courtroom"; }
+
+describe("Stage 6B room lifecycle integration", () => {
+  it.each(["A", "B"] as const)("restores %s to new setup after the authoritative mutual rematch snapshot", async you => {
+    window.history.replaceState({}, "", "/?room=ABC234");
+    const user = userEvent.setup();
+    const finished = active({ debateId: "finished-debate", phase: "complete", state: null, activeSlot: null, verdict: { outcome: "split", decision: "inconclusive", reasoning: "Both sides need evidence.", perSubtopic: [] }, acknowledgements: { A: null, B: null }, rematch: { A: you === "B" ? "2030-01-01" : null, B: you === "A" ? "2030-01-01" : null, nextDebateId: null } });
+    let session = client(room(finished, { you, themeId: "detective" })); mockedClient.mockReturnValue(session); const view = render(tree());
+    await user.click(screen.getByRole("button", { name: "Acknowledge results" })); expect(session.acknowledgeResults).toHaveBeenCalledWith("finished-debate");
+    await user.click(screen.getByRole("button", { name: "Approve rematch" })); expect(session.requestRematch).toHaveBeenCalledWith("finished-debate");
+    expect(screen.getByRole("heading", { name: "The evidence is inconclusive" })).toBeInTheDocument();
+    session = client(room(debate({ debateId: "new-debate", topic: null, positionA: null, positionB: null, confirmedA: false, confirmedB: false, history: [], consultations: [] }), { you, themeId: "detective" })); mockedClient.mockReturnValue(session); view.rerender(tree());
+    expect(screen.getByRole("heading", { name: "Prepare your debate" })).toBeInTheDocument(); expect(screen.queryByRole("heading", { name: "The evidence is inconclusive" })).not.toBeInTheDocument();
+    expect(view.container.querySelector(".theme-shell")).toHaveAttribute("data-theme", "detective"); expect(screen.getByRole("button", { name: "Previous debates" })).toBeInTheDocument();
+    if (you === "A") expect(screen.getByRole("textbox", { name: /Debate topic/ })).toHaveValue("");
+    else expect(screen.getByText("Waiting for the host to propose a topic")).toBeInTheDocument();
+  });
+});

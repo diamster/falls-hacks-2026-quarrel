@@ -54,55 +54,138 @@
 .privateHistory article>p:not(:global(.eyebrow)) {font-size:13px;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere;margin:7px 0 12px;}
 .privateHistory small {font-size:10px;color:var(--muted);}
 
-/* ---- Debate screen: one heading, one set of clocks, the scene, then the input ---- */
-.debate {display:grid;gap:12px;}
-.subtopicHeading {display:flex;align-items:flex-end;justify-content:space-between;gap:20px;}
-.headingText {min-width:0;}
-.topic {font-family:var(--font-sans);font-size:12px;font-weight:700;letter-spacing:.4px;line-height:1.4;color:var(--muted);margin:0 0 6px;overflow-wrap:anywhere;}
-.subtopicHeading h2 {font-family:var(--font-pixel);font-size:28px;line-height:1.15;margin-top:3px;overflow-wrap:anywhere;}
-.progress {display:flex;gap:6px;list-style:none;margin:0;padding:0;flex:none;}
-.progress li {display:grid;place-items:center;width:30px;height:30px;border:2px solid var(--ink);background:var(--paper);font-family:var(--font-pixel);font-size:16px;line-height:1;color:var(--muted);}
+/* Stage 6A/6B: history filter, results, jury recovery, archive */
+.historyFilter {display:grid;gap:6px;font-size:12px;font-weight:700;margin-bottom:15px;}
+.historyFilter select {width:100%;min-width:0;max-width:100%;min-height:44px;padding:9px;background:var(--paper);color:var(--ink);border:1px solid var(--line);font:inherit;}
+.resultActions {display:grid;gap:20px;border-top:1px solid var(--line);padding-top:20px;margin-top:20px;}
+.resultActions>div {display:grid;gap:10px;}
+.resultActions button {justify-self:start;}
+.resultActions p,.recovery p {font-size:13px;line-height:1.7;}
+.recovery {padding:20px;display:grid;gap:12px;}
+.recovery button {justify-self:start;}
+.archive {padding:18px;margin-top:24px;}
+.archiveBody {margin-top:18px;display:grid;gap:15px;}
+.archiveBody h2 {font-family:var(--font-pixel);font-size:28px;}
+.archiveBody>.verdict {padding:0;}
+.archiveBody .transcript {margin-top:15px;}
+.lawyerBubble {font-size:12px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere;border:2px solid var(--ink);background:var(--paper);padding:9px;margin-top:8px;max-height:160px;overflow-y:auto;}
+.counsel[data-speaking="true"] {align-items:flex-start;border-color:var(--theme-secondary);}
+.counsel[data-speaking="true"] :global(.sprite-body) {animation:counsel-speaking .32s steps(2,end) infinite;transform-origin:center bottom;}
+@keyframes counsel-speaking {50%{transform:translateY(-2px) rotate(1deg)}}
+.counsel[data-paused="true"] :global(.sprite-body) {animation:none;}
+@media(prefers-reduced-motion:reduce){.counsel :global(.sprite-body){animation:none!important;}}
+/* Long user-written topics and names must wrap in saved results on narrow screens. */
+.verdict { min-width: 0; overflow-wrap: anywhere; }
+
+/* ==========================================================================
+   Game screen: the courtroom fills the view. Question and versus clocks at
+   the top, one input bar at the bottom with your clock built in, history in
+   a drawer on the right.
+   ========================================================================== */
+.game {position:relative;height:100%;min-height:520px;overflow:hidden;--hud-top:178px;--hud-bottom:118px;}
+.game :global(.debate-arena) {position:absolute!important;inset:0;height:auto!important;min-height:0!important;border:0!important;box-shadow:none!important;}
+.game :global(.debate-arena .court-stage) {position:absolute;inset:var(--hud-top) 16px var(--hud-bottom);container:arena/size;transition:right .25s ease;}
+.game[data-history="open"] :global(.debate-arena .court-stage) {right:calc(min(380px,40vw) + 24px);}
+/* the judge's bubble sits just above the judge at the cast's scale */
+.game :global(.debate-arena .judge-speech) {--sh:1;--sw:1;--s:min(var(--sh),var(--sw));top:auto!important;bottom:calc(306px * var(--s) + 8px)!important;width:min(340px,60%)!important;max-width:none!important;max-height:28%!important;overflow-y:auto;}
+@container arena (max-height:500px) {.game :global(.judge-speech) {--sh:.9;}}
+@container arena (max-height:450px) {.game :global(.judge-speech) {--sh:.8;}}
+@container arena (max-height:400px) {.game :global(.judge-speech) {--sh:.72;}}
+@container arena (max-height:360px) {.game :global(.judge-speech) {--sh:.64;}}
+@container arena (max-height:320px) {.game :global(.judge-speech) {--sh:.56;}}
+@container arena (max-height:280px) {.game :global(.judge-speech) {--sh:.5;}}
+@container arena (max-width:900px) {.game :global(.judge-speech) {--sw:.86;}}
+@container arena (max-width:760px) {.game :global(.judge-speech) {--sw:.74;}}
+@container arena (max-width:640px) {.game :global(.judge-speech) {--sw:.62;}}
+@container arena (max-width:520px) {.game :global(.judge-speech) {--sw:.52;}}
+@container arena (max-width:420px) {.game :global(.judge-speech) {--sw:.44;}}
+
+/* top: question card + versus clocks */
+.hudTop {position:absolute;z-index:5;top:10px;left:50%;transform:translateX(-50%);width:min(720px,calc(100% - 420px));display:grid;gap:8px;}
+.questionCard {background:color-mix(in srgb,var(--paper) 94%,transparent);border:2px solid var(--ink);box-shadow:3px 3px 0 #0003;padding:8px 14px 10px;backdrop-filter:blur(6px);}
+.topic {font-family:var(--font-sans);font-size:11px;font-weight:700;letter-spacing:.3px;line-height:1.3;color:var(--muted);margin:0 0 4px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+.questionRow {display:flex;align-items:center;gap:12px;}
+.questionText {min-width:0;}
+.questionText :global(.eyebrow) {font-size:8px;margin:0;}
+.questionText h2 {font-family:var(--font-pixel);font-size:21px;line-height:1.15;margin-top:2px;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.progress {display:flex;gap:4px;list-style:none;margin:0;padding:0;flex:none;}
+.progress li {display:grid;place-items:center;width:24px;height:24px;border:2px solid var(--ink);background:var(--paper);font-family:var(--font-pixel);font-size:13px;line-height:1;color:var(--muted);}
 .progress li[data-state="done"] {background:var(--theme-secondary);border-color:var(--theme-secondary);color:var(--paper);}
-.progress li[data-state="current"] {background:var(--theme-accent);color:var(--theme-accent-ink);box-shadow:2px 2px 0 var(--ink);}
-.layout {display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,360px);gap:16px;align-items:start;}
-.main {min-width:0;display:grid;gap:12px;}
-.main :global(.debate-arena) {min-height:0;height:clamp(320px,calc(100dvh - 510px),460px);}
-.main :global(.judge-speech) {max-width:min(420px,52%);max-height:120px;overflow-y:auto;}
-/* chess clocks: A on the left, B on the right, the running one lit */
-.clocks {display:grid;grid-template-columns:1fr 1fr;gap:12px;}
-.clock {display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:0 14px;background:var(--paper);border:2px solid var(--ink);padding:8px 14px;min-width:0;transition:background .15s,box-shadow .15s;}
+.progress li[data-state="current"] {background:var(--theme-accent);color:var(--theme-accent-ink);}
+.versus {position:relative;display:grid;grid-template-columns:1fr 1fr;gap:44px;}
+.vs {position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-family:var(--font-pixel);font-size:20px;color:#fff;text-shadow:0 2px 0 #000,0 0 8px #0009;}
+.clock {display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:0 10px;background:color-mix(in srgb,var(--paper) 94%,transparent);border:2px solid var(--ink);padding:5px 12px;min-width:0;transition:background .15s,transform .15s,box-shadow .15s;}
 .clock[data-slot="B"] {grid-template-columns:auto minmax(0,1fr);text-align:right;}
 .clock[data-slot="B"]>strong {grid-column:1;grid-row:1/3;}
-.clockName {display:flex;align-items:baseline;gap:8px;min-width:0;font-size:14px;font-weight:750;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+.clockName {display:flex;align-items:baseline;gap:6px;min-width:0;font-size:13px;font-weight:750;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
 .clock[data-slot="B"] .clockName {justify-content:flex-end;}
-.clockName em {font-style:normal;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);}
-.clock>strong {font-family:var(--font-pixel);font-size:34px;line-height:1;font-variant-numeric:tabular-nums;grid-column:2;grid-row:1/3;}
-.clock>small {font-size:10px;color:var(--muted);}
-.clock[data-active="true"] {background:var(--theme-accent);color:var(--theme-accent-ink);box-shadow:3px 3px 0 var(--ink);}
-.clock[data-active="true"] :is(small,.clockName em) {color:inherit;}
-.clock[data-expired="true"] {opacity:.6;}
-/* argument input */
-.publicComposer {border-top:4px solid var(--theme-accent);}
-.publicComposer[data-active="true"] {box-shadow:4px 4px 0 var(--theme-accent);}
-.composerBody {padding:14px 16px;display:grid;gap:10px;}
-.composerTop {display:flex;align-items:baseline;justify-content:space-between;gap:6px 16px;flex-wrap:wrap;}
-.composerTop h3 {font-family:var(--font-pixel);font-size:22px;line-height:1.1;margin:0;}
-.composerTop h3 span {display:block;font-family:var(--font-sans);font-size:11px;font-weight:600;color:var(--muted);margin-top:3px;}
-.composerTop .help {flex:1 1 260px;margin:0;text-align:right;line-height:1.5;}
-.argumentField {margin:0;}
-.fieldLabel {position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;}
-.argumentField textarea {min-height:76px;resize:vertical;}
-.composerFooter {display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
-.counter {font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;}
-.fineprint {font-size:11px;line-height:1.5;color:var(--muted);margin:0;}
+.clockName em {font-style:normal;font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;padding:1px 4px;background:var(--ink);color:var(--paper);}
+.clock>strong {font-family:var(--font-pixel);font-size:28px;line-height:1;font-variant-numeric:tabular-nums;grid-column:2;grid-row:1/3;}
+.clock>small {font-size:9px;color:var(--muted);}
+.clock[data-active="true"] {background:var(--theme-accent);color:var(--theme-accent-ink);box-shadow:0 0 0 3px var(--ink),0 0 18px color-mix(in srgb,var(--theme-accent) 70%,transparent);transform:translateY(-2px);}
+.clock[data-active="true"] :is(small) {color:inherit;}
+.clock[data-expired="true"] {opacity:.55;}
 
-@media(max-width:1100px){.layout{grid-template-columns:minmax(0,1fr) 300px;gap:12px}.subtopicHeading h2{font-size:24px}.clock>strong{font-size:30px}}
-@media(max-width:900px){.layout{grid-template-columns:1fr}.main :global(.debate-arena){height:clamp(260px,52vw,380px)}.composerTop .help{text-align:left}}
-@media(max-width:600px){
-  .setupBody{padding:16px;gap:18px}.positions{grid-template-columns:1fr}.startRow{flex-direction:column;align-items:stretch;gap:13px}.startRow>button{width:100%}
-  .debate{gap:10px}.subtopicHeading{align-items:flex-start;gap:10px}.subtopicHeading h2{font-size:20px}.topic{font-size:11px;margin-bottom:3px}.progress li{width:24px;height:24px;font-size:13px}
-  .clocks{gap:8px}.clock,.clock[data-slot="B"]{grid-template-columns:1fr;padding:6px 10px;gap:1px}.clock>strong,.clock[data-slot="B"]>strong{grid-column:1;grid-row:2;font-size:26px}.clockName{font-size:12px}.clockName em{display:none}.clock>small{font-size:9px}
-  .main :global(.debate-arena){height:250px}.main :global(.judge-speech){max-width:72%;max-height:84px}
-  .composerBody{padding:12px;gap:8px}.composerTop h3{font-size:19px}.composerFooter :global(.pixel-button){width:100%}.argumentField textarea{font-size:16px}
-  .verdict{padding:17px}.verdict h2{font-size:25px}.processing{padding:16px}
+/* bottom: one input bar, your clock built in */
+.hudBottom {position:absolute;z-index:5;bottom:14px;left:50%;transform:translateX(-50%);width:min(900px,calc(100% - 32px));display:grid;gap:8px;}
+.game[data-history="open"] .hudTop {left:calc((100% - min(380px,40vw) - 24px) / 2);width:min(720px,calc(100% - min(380px,40vw) - 220px));}
+.game[data-history="open"] .hudBottom {left:calc((100% - min(380px,40vw) - 24px) / 2);width:min(900px,calc(100% - min(380px,40vw) - 56px));}
+.composers {display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:8px;}
+.publicComposer {position:relative;background:color-mix(in srgb,var(--paper) 96%,transparent);backdrop-filter:blur(6px);}
+.publicComposer[data-active="true"] {box-shadow:0 0 0 3px var(--theme-accent),4px 4px 0 var(--ink);}
+.composerBody {padding:0;display:grid;gap:0;}
+.timeTrack {height:6px;background:color-mix(in srgb,var(--ink) 18%,transparent);}
+.timeTrack span {display:block;height:100%;background:var(--theme-accent);transition:width 1s linear;}
+.publicComposer[data-low="true"] .timeTrack span {background:#d9452b;animation:time-low .5s steps(2,end) infinite;}
+@keyframes time-low {50%{opacity:.4}}
+.inputRow {display:flex;align-items:center;gap:10px;padding:8px 10px;}
+.yourClock {flex:none;min-width:64px;font-family:var(--font-pixel);font-size:24px;line-height:1;font-variant-numeric:tabular-nums;color:var(--ink);}
+.publicComposer[data-active="true"] .yourClock {color:var(--ink);}
+.publicComposer[data-low="true"] .yourClock {color:#d9452b;}
+.argumentField {flex:1;min-width:0;margin:0!important;}
+.argumentField textarea {min-height:42px!important;height:42px;max-height:120px;resize:none;margin:0!important;padding:10px 12px!important;font-size:15px!important;}
+.counter {flex:none;font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums;}
+.inputRow :global(.pixel-button) {flex:none;min-height:42px;white-space:nowrap;}
+.composers>.privateComposer {align-self:stretch;position:relative;background:color-mix(in srgb,var(--paper) 96%,transparent);}
+.composers>.privateComposer>summary {height:100%;padding:0 14px;gap:8px;}
+.composers>.privateComposer>summary>span {font-family:var(--font-sans);font-size:12px;font-weight:750;}
+.composers>.privateComposer>summary small {display:none;}
+.composers>.privateComposer[open]>div {position:absolute;right:0;bottom:calc(100% + 8px);width:min(400px,90vw);max-height:60vh;overflow-y:auto;background:var(--paper);border:2px solid var(--ink);box-shadow:4px 4px 0 var(--ink);padding:14px;gap:12px;}
+.hudBottom>.processing {padding:10px 14px;gap:10px;}
+.hudBottom>.processing p {font-size:13px;}
+
+/* results: centred over the courtroom */
+.results {position:absolute;z-index:6;inset:150px 16px 16px;display:grid;place-items:start center;overflow-y:auto;}
+.results>* {width:min(720px,100%);}
+
+/* history drawer, toggled next to the menu */
+.historyToggle {position:absolute;z-index:7;top:10px;right:12px;min-height:34px;padding:5px 10px;border:2px solid var(--ink);background:var(--paper);color:var(--ink);font-weight:750;font-size:12px;cursor:pointer;}
+.drawer {position:absolute;z-index:8;top:54px;right:12px;bottom:12px;width:min(380px,40vw);display:flex;flex-direction:column;gap:8px;transition:transform .25s ease,opacity .2s ease,visibility .25s;}
+.drawer[data-open="false"] {transform:translateX(calc(100% + 24px));opacity:0;visibility:hidden;pointer-events:none;}
+.drawer>:global(aside) {position:static!important;flex:1;min-height:0;max-height:none!important;}
+.drawer>:global(aside) header button[aria-expanded] {display:none!important;}
+.drawer>:global(aside) [data-expanded] {display:flex!important;}
+.drawer>:global(aside) [role="log"] {max-height:none!important;}
+.drawerTools {flex:none;}
+.drawerTools :global(.character-speech-toolbar) {background:var(--paper);border:2px solid var(--ink);padding:6px 8px;}
+
+@media(max-width:1180px) and (min-width:761px){.hudTop{top:50px;width:min(720px,calc(100% - 32px))}.game{--hud-top:224px}.game[data-history="open"] .hudTop{width:calc(100% - min(380px,40vw) - 56px)}}
+@media(max-width:1100px){.questionText h2{font-size:18px}.clock>strong{font-size:24px}}
+/* phones: question and clocks on top, courtroom in the middle, the input bar at the bottom */
+@media(max-width:760px){
+  .game[data-history="open"] .hudTop {left:auto;width:auto;}
+  .game {display:flex;flex-direction:column;min-height:0;}
+  .hudTop {position:static;transform:none;width:auto;margin:48px 8px 6px;gap:6px;}
+  .questionText h2 {font-size:16px;}
+  .versus {gap:30px;}.vs{font-size:15px}.clock{padding:4px 8px}.clock>strong{font-size:20px}.clock>small{display:none}.clockName{font-size:11px}
+  .game :global(.debate-arena) {position:relative!important;inset:auto;flex:1 1 auto;min-height:180px!important;}
+  .game :global(.debate-arena .court-stage) {inset:4px 0 0 0;}
+  .game[data-history="open"] :global(.debate-arena .court-stage) {right:0;}
+  .hudBottom,.game[data-history="open"] .hudBottom {position:static;transform:none;width:auto;left:auto;margin:6px 8px 8px;}
+  .composers {grid-template-columns:1fr;}
+  .inputRow {flex-wrap:wrap;gap:8px;}.yourClock{min-width:0;font-size:20px}.argumentField{flex-basis:100%;order:3}.argumentField textarea{font-size:16px!important}.inputRow :global(.pixel-button){margin-left:auto}
+  .composers>.privateComposer>summary {padding:10px 12px;}
+  .composers>.privateComposer[open]>div {width:auto;left:0;}
+  .drawer {top:48px;left:8px;right:8px;bottom:8px;width:auto;}
+  .results {position:static;inset:auto;margin:8px;}
 }

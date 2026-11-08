@@ -14,6 +14,8 @@ import { SettingsDialog } from "./settings-page";
 import { PixelButton, PixelIcon, SectionHeading } from "./ui";
 import { useDisplayPreferences } from "./display-preferences";
 import "./stage-five-app.css";
+import { CharacterSpeechProvider } from "./character-speech";
+import { PreviousDebates } from "./lawyer-results";
 
 export function StageFiveApp() {
   const session = useRoomClient();
@@ -21,6 +23,7 @@ export function StageFiveApp() {
   const [view, setView] = useState<"auto" | "start" | "room">("auto");
   const [initialCode, setInitialCode] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   useEffect(() => { setInitialCode(new URLSearchParams(window.location.search).get("room")?.toUpperCase().slice(0, 6) ?? ""); }, []);
   useEffect(() => {
     const readView = () => {
@@ -75,20 +78,22 @@ export function StageFiveApp() {
 
   // In a game there is no header: just the logo and a menu over the courtroom. The game fills the viewport;
   // arriving from the lobby in this tab plays a short zoom into the courtroom.
-  if (room && debate && started) return <div className={`theme-shell stage-five-shell game-shell${enteringGame ? " game-shell--entering" : ""}`} data-theme={theme.id} style={themeStyles(theme)}>
+  const speechProps = { roomId: room?.id ?? null, debateId: debate?.debateId ?? null, themeId: theme.id, messages: debate?.history ?? [] };
+  if (room && debate && started) return <CharacterSpeechProvider {...speechProps}><div className={`theme-shell stage-five-shell game-shell${enteringGame ? " game-shell--entering" : ""}`} data-theme={theme.id} style={themeStyles(theme)}>
     <a className="skip-link" href="#courtroom-content">Skip to courtroom</a>
     <div className="game-overlay">
       {brand}
+      <div className="game-overlay-actions"><button type="button" className="game-history-toggle" aria-pressed={historyOpen} aria-controls="debate-history-drawer" onClick={() => setHistoryOpen(open => !open)}>History<PixelIcon name={historyOpen ? "close" : "chat"}/></button>
       <GameMenu roomCode={room.code} onSettings={openSettings} onHome={() => navigate("start")}>
         <RoomLobby room={room} theme={theme} pending={session.pending} offline={session.offline} live={session.live} onReady={ready => { void session.setReady(ready); }} onLeave={() => leave(room.id)}/>
-      </GameMenu>
+      </GameMenu></div>
     </div>
     <main id="courtroom-content" className="game-stage" tabIndex={-1}>
       {error}
-      <LawyerDebateView room={room} theme={theme} clocks={session.lawyerClocks} pending={session.pending} offline={session.offline} paused={paused} onSend={session.sendToLawyer} onConsult={session.consultLawyer}/>
+      <LawyerDebateView room={room} theme={theme} clocks={session.lawyerClocks} pending={session.pending} offline={session.offline} paused={paused} onSend={session.sendToLawyer} onConsult={session.consultLawyer} onAcknowledge={session.acknowledgeResults} onRematch={session.requestRematch} onRetryJury={session.retryJury} historyOpen={historyOpen} onHistoryOpenChange={setHistoryOpen}/>
     </main>
     {settings}
-  </div>;
+  </div></CharacterSpeechProvider>;
 
   // Before a debate starts, the theme's scene fills the screen and the controls float over it in two
   // columns: your seat on the left, the debate setup and the setting on the right.
@@ -96,7 +101,7 @@ export function StageFiveApp() {
     : room ? <RoomLobby key={room.id} room={room} theme={theme} readOnly={!debate} pending={session.pending} offline={session.offline} live={session.live} onReady={ready => { void session.setReady(ready); }} onLeave={() => leave(room.id)}/>
     : session.room ? <section className="room-panel pixel-panel"><SectionHeading eyebrow="WELCOME BACK">Your room is saved</SectionHeading><div className="room-panel-body saved-room-body"><p>Your previous room and record remain available.</p><strong>{session.room.code}</strong><PixelButton onClick={() => navigate("room")}>Resume room<PixelIcon name="arrow"/></PixelButton><LeaveRoomControl pending={session.pending} offline={session.offline} onLeave={() => leave(session.room!.id)} label="Create or join another room"/></div></section>
     : <RoomEntry theme={theme} pending={session.pending} initialCode={initialCode} onCreate={name => { void session.create(name).then(success => { if (success) setView("room"); }); }} onJoin={(code, name) => { void session.join(code, name).then(success => { if (success) setView("room"); }); }}/>;
-  return <div className="theme-shell theme-shell--fit stage-five-shell" data-theme={theme.id} style={themeStyles(theme)}>
+  return <CharacterSpeechProvider {...speechProps}><div className="theme-shell theme-shell--fit stage-five-shell" data-theme={theme.id} style={themeStyles(theme)}>
     <a className="skip-link" href="#courtroom-content">Skip to courtroom</a>
     {header}
     <main id="courtroom-content" className="app-shell lobby-shell" tabIndex={-1}>
@@ -110,6 +115,7 @@ export function StageFiveApp() {
       {error}
       <div className="lobby-column lobby-column--left">
         {roomPanel}
+        {!session.loading && view !== "auto" && <PreviousDebates listResults={session.listResults} getResult={session.getResult}/>}
         {room && !debate && <section className="pixel-panel stage-five-legacy"><h2>Earlier debate record</h2><p>This room keeps its original theme and history. Create a new room to use personal lawyers, subtopics and the jury.</p></section>}
       </div>
       <DebateArena theme={theme} players={players} dialogue={lobbyDialogue} dialogueKey={`${theme.id}:${room?.id}:${debate?.phase}:${debate?.planReady}`} judgeState="speaking" judgeLabel="YOUR NEUTRAL JUDGE" paused={paused} roomCode={room?.code} showTimer={false}/>
@@ -127,5 +133,5 @@ export function StageFiveApp() {
       </div>
     </main>
     {settings}
-  </div>;
+  </div></CharacterSpeechProvider>;
 }

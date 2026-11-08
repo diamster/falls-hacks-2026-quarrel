@@ -3,7 +3,7 @@ import { generateLawyerResult } from "@/server/judge-engine";
 import { validateLawyerResult } from "@/server/lawyer-policy";
 import type { LawyerJob } from "@/lib/lawyer-types";
 
-// Explicit opt-in, exactly two synthetic calls. Never prints input, output,
+// Explicit opt-in, two synthetic jobs (at most one configured alternate per job). Never prints input, output,
 // provider bodies, request URLs/headers, environment values or credentials.
 const live = process.env.RUN_LIVE_LAWYER_TESTS === "true";
 const base: LawyerJob = {
@@ -60,7 +60,9 @@ async function inspect(job: LawyerJob) {
   try {
     const result = await generateLawyerResult(job);
     console.log("LIVE_STAGE5_METADATA", JSON.stringify({ kind: job.kind, ...observation, source: result.source, calls }));
-    expect(calls, "Each role may issue exactly one provider request; no hidden retries.").toBe(1);
+    const maxCalls = process.env.GEMINI_FALLBACK_MODEL?.trim() && process.env.GEMINI_FALLBACK_MODEL.trim() !== (process.env.GEMINI_MODEL?.trim() || "gemini-3.6-flash") ? 2 : 1;
+    expect(calls).toBeGreaterThanOrEqual(1);
+    expect(calls, "No calls beyond the explicitly configured alternate are permitted.").toBeLessThanOrEqual(maxCalls);
     expect(result.source, "The live smoke requires validated AI output, not a fallback response.").toBe("ai");
     expect(observation.validResult).toBe(true);
     expect(Boolean(result.text.trim())).toBe(true);

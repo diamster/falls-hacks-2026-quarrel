@@ -1,4 +1,4 @@
-name: quarrel.io Stage 1–5 checks
+name: quarrel.io Stage 1–6A checks
 
 on:
   push:
@@ -51,6 +51,10 @@ jobs:
         env:
           QUARREL_TEST_URL: http://127.0.0.1:3001
         run: npm run test:lawyer
+      - name: Verify Stage 6A results and rematch API boundaries
+        env:
+          QUARREL_TEST_URL: http://127.0.0.1:3001
+        run: npm run test:stage6a
       - name: Stop local Supabase
         if: always()
         run: npm run supabase:stop > /tmp/quarrel-supabase-stop.log 2>&1

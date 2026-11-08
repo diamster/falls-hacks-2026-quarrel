@@ -1,0 +1,11 @@
+.character-speech-toolbar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:12px 0;font-size:12px;}
+.character-speech-toolbar button,.speech-message-controls button{background:var(--paper);color:var(--ink);border:2px solid var(--line,var(--ink));padding:7px 10px;min-height:36px;font:inherit;cursor:pointer;box-shadow:2px 2px 0 var(--line,var(--ink));}
+.character-speech-toolbar button:focus-visible,.speech-message-controls button:focus-visible{outline:3px solid var(--theme-secondary);outline-offset:3px;}
+.character-speech-toolbar button:disabled,.speech-message-controls button:disabled{opacity:.5;cursor:default;}
+.speech-status{font-size:11px;color:var(--muted);}
+.speech-error{width:100%;font-size:12px;line-height:1.5;margin:0;color:var(--ink);}
+.speech-message-controls{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:11px;}
+.settings-audio{margin-top:24px;}
+.settings-range{display:grid;gap:8px;}
+.settings-range input{width:100%;accent-color:var(--theme-secondary);min-height:28px;}
+@media(max-width:600px){.character-speech-toolbar button,.speech-message-controls button{min-height:44px;}.speech-status{width:100%;}}

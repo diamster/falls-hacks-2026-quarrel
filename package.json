@@ -22,7 +22,9 @@
     "test:debate": "node --env-file-if-exists=.env.local tests/db/debate.integration.mjs",
     "test:judge": "node --env-file-if-exists=.env.local tests/db/judge.integration.mjs",
     "test:judge:live": "node --env-file-if-exists=.env.local node_modules/vitest/vitest.mjs run tests/judge-live.test.ts",
-    "test:lawyer": "node --env-file-if-exists=.env.local tests/db/lawyer.integration.mjs"
+    "test:lawyer": "node --env-file-if-exists=.env.local tests/db/lawyer.integration.mjs",
+    "test:stage6a": "node --env-file-if-exists=.env.local tests/db/stage6a.integration.mjs",
+    "test:stage6b": "node --env-file-if-exists=.env.local tests/db/stage6b.integration.mjs"
   },
   "engines": {
     "node": ">=22.12.0"

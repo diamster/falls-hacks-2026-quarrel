@@ -15,9 +15,22 @@ export interface JuryVerdict {
   outcome: "A" | "B" | "split";
   reasoning: string;
   perSubtopic: { ordinal: number; text: string }[];
+  /** Optional only for historical Stage 5 verdicts; Stage 6 validates these. */
+  decision?: "A" | "B" | "tie" | "inconclusive";
+  topic?: string;
+  positionA?: string;
+  positionB?: string;
+  strongestArguments?: { A: string; B: string };
+  weaknesses?: { A: string[]; B: string[] };
+  compromise?: string | null;
+  /** Copied from canonical saved summaries, never invented by the jury. */
+  subtopicSummaries?: { ordinal: number; text: string; source: LawyerSource }[];
 }
 /** Public presentations only. rawText is supplied only to the owning member. */
 export interface LawyerPublicMessage {
+  /** Short-lived, participant-bound proof of this saved public speech text. */
+  speechToken?: string;
+  speechBlocked?: boolean;
   id: string;
   label: string;
   kind: "argument" | "judge_summary" | "announcement" | "jury_verdict";
@@ -42,6 +55,16 @@ export interface LawyerConsultation {
 }
 export interface LawyerDebateSnapshot {
   format: "lawyer";
+  debateId?: string;
+  reliabilityVersion?: number;
+  acknowledgements?: { A: string | null; B: string | null };
+  rematch?: { A: string | null; B: string | null; nextDebateId: string | null };
+  juryStatus?: {
+    state: "pending" | "processing" | "retry_wait" | "retry_required" | "complete";
+    attempts: number;
+    retryAt: string | null;
+    errorCode: string | null;
+  } | null;
   phase: LawyerPhase;
   topic: string | null;
   totalSeconds: number;
@@ -82,6 +105,9 @@ export interface LawyerContext {
 }
 export interface LawyerJob {
   id: string;
+  /** Per-attempt lease identity supplied by the database, never by a player. */
+  claimToken?: string;
+  debateId?: string;
   kind: LawyerJobKind;
   mode: "ai" | "demo";
   slot: PlayerSlot | null;
@@ -102,4 +128,24 @@ export function lawyerClockSeconds(debate: LawyerDebateSnapshot, slot: PlayerSlo
   const remaining = debate.state === "composing" && debate.activeSlot === slot && debate.turnDeadline
     ? Math.min(stored, Date.parse(debate.turnDeadline) - serverTimeMs) : stored;
   return Number.isFinite(remaining) ? Math.max(0, Math.ceil(remaining / 1000)) : 0;
+}
+
+/** Completed, participant-authorized archive; no raw drafts or consultations. */
+export interface LawyerResultRecord {
+  id: string;
+  roomId: string;
+  topic: string;
+  themeId: string;
+  totalSeconds: number;
+  startedAt: string;
+  completedAt: string;
+  verdict: JuryVerdict;
+  acknowledgements: { A: string | null; B: string | null };
+  rematch: { A: string | null; B: string | null; nextDebateId: string | null };
+}
+export interface LawyerResultDetail extends LawyerResultRecord {
+  positions: { A: string; B: string };
+  players: { slot: PlayerSlot; name: string }[];
+  history: LawyerPublicMessage[];
+  subtopics: (PlannedSubtopic & { summary: string | null })[];
 }

@@ -5,7 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import type { RoomResponse } from "./room-types";
 import type { ThemeId } from "@/themes";
 import { remainingTurnSeconds, type ServerClock } from "./debate-types";
-import { lawyerClockSeconds } from "./lawyer-types";
+import { lawyerClockSeconds, type LawyerResultDetail, type LawyerResultRecord } from "./lawyer-types";
 
 const messages: Record<string, string> = {
   ROOM_NOT_FOUND: "That room does not exist. Check the six-character code and try again.",
@@ -18,7 +18,7 @@ const messages: Record<string, string> = {
   NOT_CONFIGURED: "Rooms are not configured yet. The project owner needs to connect Supabase.",
 };
 
-export async function roomRequest(path: string, body?: object, signal?: AbortSignal, expectedRoomId?: string | null): Promise<RoomResponse> {
+export async function roomRequest<T = RoomResponse>(path: string, body?: object, signal?: AbortSignal, expectedRoomId?: string | null): Promise<T> {
   const response = await fetch(path, {
     method: body ? "POST" : "GET",
     credentials: "same-origin",
@@ -30,13 +30,13 @@ export async function roomRequest(path: string, body?: object, signal?: AbortSig
   const payload = await response.json();
   if (!response.ok) {
     const message = typeof payload.error === "string" ? messages[payload.error] ?? payload.error : "We could not reach the room. Please try again.";
-    throw new RoomRequestError(message, response.status, payload.code === "STALE_ROOM" ? "STALE_ROOM" : undefined);
+    throw new RoomRequestError(message, response.status, payload.code === "STALE_ROOM" || payload.code === "STALE_DEBATE" ? payload.code : undefined);
   }
   return payload;
 }
 
 class RoomRequestError extends Error {
-  constructor(message: string, readonly status: number, readonly code?: "STALE_ROOM") { super(message); }
+  constructor(message: string, readonly status: number, readonly code?: "STALE_ROOM" | "STALE_DEBATE") { super(message); }
 }
 
 export function useRoomClient() {
@@ -85,7 +85,7 @@ export function useRoomClient() {
         setError(reason instanceof Error ? reason.message : "We could not reach the room. Please try again.");
         if (timedOut) setError("The room took too long to respond. Please try reconnecting.");
         if (reason instanceof RoomRequestError && (reason.status === 401 || reason.status === 410)) { currentRoomId.current = null; setData({ room: null }); }
-        staleRoom = reason instanceof RoomRequestError && reason.code === "STALE_ROOM";
+        staleRoom = reason instanceof RoomRequestError && (reason.code === "STALE_ROOM" || reason.code === "STALE_DEBATE");
         if (reason instanceof RoomRequestError && reason.status === 401) setError("Your player session was lost. Your previous seat cannot be recovered here; create a new room or use another invitation.");
         if (timedOut || !body || path.endsWith("heartbeat")) setOffline(true);
         return false;
@@ -178,6 +178,48 @@ export function useRoomClient() {
     return success;
   }, [request, data.room?.id]);
 
+  // Archive responses are not room envelopes. Serialize them with session reads
+  // without replacing the live room or resetting its authoritative clock anchor.
+  const resultRequest = useCallback(async function readResult<T>(path: string, body?: object): Promise<T | null> {
+    while (active.current) await active.current;
+    if (!mounted.current) return null;
+    const abort = new AbortController();
+    controller.current = abort;
+    const timeout = window.setTimeout(() => abort.abort(), 15_000);
+    let result: T | null = null;
+    const operation = (async () => {
+      try {
+        const payload = await roomRequest<T>(path, body, abort.signal);
+        if (!mounted.current || abort.signal.aborted) return false;
+        result = payload;
+        setError("");
+        return true;
+      } catch (reason) {
+        if (mounted.current) setError(reason instanceof Error ? reason.message : "The saved result is unavailable. Please try again.");
+        return false;
+      } finally {
+        window.clearTimeout(timeout);
+        if (controller.current === abort) active.current = null;
+      }
+    })();
+    active.current = operation;
+    await operation;
+    return result;
+  }, []);
+  const listResults = useCallback(async (resultRoomId?: string) => {
+    const payload = await resultRequest<{ history: LawyerResultRecord[] }>(`/api/rooms/lawyer/history${resultRoomId ? `?roomId=${encodeURIComponent(resultRoomId)}` : ""}`);
+    return payload?.history ?? null;
+  }, [resultRequest]);
+  const getResult = useCallback(async (debateId: string) => {
+    const payload = await resultRequest<{ history: LawyerResultDetail }>(`/api/rooms/lawyer/history?debateId=${encodeURIComponent(debateId)}`);
+    return payload?.history ?? null;
+  }, [resultRequest]);
+  const acknowledgeResults = useCallback(async (debateId: string) => {
+    const payload = await resultRequest<{ results: LawyerResultDetail }>("/api/rooms/lawyer/acknowledge", { debateId });
+    if (payload && mounted.current) await refresh();
+    return payload?.results ?? null;
+  }, [resultRequest, refresh]);
+
   const debate = data.room?.debate;
   const lawyer = data.room?.lawyer;
   useEffect(() => {
@@ -237,6 +279,9 @@ export function useRoomClient() {
 
   return {
     room: data.room, loading, pending, offline, live, error, refresh, remainingSeconds, lawyerClocks,
+    listResults, getResult, acknowledgeResults,
+    requestRematch: (debateId: string) => act("/api/rooms/lawyer/rematch", { debateId }),
+    retryJury: (debateId: string) => act("/api/rooms/lawyer/retry", { debateId }),
     proposeLawyerTopic: (topic: string, totalSeconds: number, revision: number) => act("/api/rooms/lawyer/topic", { topic, totalSeconds, revision }),
     setOwnPosition: (position: string, revision: number) => act("/api/rooms/lawyer/position", { position, revision }),
     planDebate: (revision: number, regenerate: boolean) => act("/api/rooms/lawyer/plan", { revision, regenerate }),

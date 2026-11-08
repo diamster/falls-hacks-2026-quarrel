@@ -262,3 +262,65 @@ describe("Stage 5 lawyer debate interface", () => {
     expect(view.container.querySelector("[data-paused=true]")).not.toBeNull();
   });
 });
+
+describe("Stage 6B saved results and recovery", () => {
+  const completed = () => active({ debateId: "debate-6b", reliabilityVersion: 2, phase: "complete", state: null, activeSlot: null, verdict: { outcome: "split", decision: "tie", topic: "Should lectures be mandatory?", positionA: "Attendance helps", positionB: "Flexibility matters", reasoning: "Both sides identify supported tradeoffs.", strongestArguments: { A: "Participation opportunities", B: "Independent learning" }, weaknesses: { A: ["No comparative evidence"], B: ["Unclear participation impact"] }, compromise: "Offer recorded seminars.", perSubtopic: [{ ordinal: 1, text: "Both approaches can support learning." }], subtopicSummaries: [{ ordinal: 1, text: "The judge recorded both tradeoffs.", source: "ai" }] }, acknowledgements: { A: null, B: null }, rematch: { A: null, B: null, nextDebateId: null } });
+
+  it("shows saved rich verdict fields without treating acknowledgement as agreement", async () => {
+    const user = userEvent.setup(); const state = completed(); const onAcknowledge = vi.fn().mockResolvedValue({}); const onRematch = vi.fn().mockResolvedValue(true);
+    const view = render(<LawyerDebateView {...props(room(state))} onAcknowledge={onAcknowledge} onRematch={onRematch}/>);
+    expect(screen.getByRole("heading", { name: "The presented cases are tied" })).toBeInTheDocument();
+    expect(screen.getByText("Participation opportunities")).toBeInTheDocument(); expect(screen.getByText("No comparative evidence")).toBeInTheDocument();
+    expect(screen.getByText("Offer recorded seminars.")).toBeInTheDocument();
+    expect(screen.getByText(/It does not mean agreement/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Acknowledge results" }));
+    expect(onAcknowledge).toHaveBeenCalledExactlyOnceWith("debate-6b"); expect(onRematch).not.toHaveBeenCalled();
+    view.rerender(<LawyerDebateView {...props(room({ ...state, acknowledgements: { A: "2030-01-01", B: null } }))} onAcknowledge={onAcknowledge} onRematch={onRematch}/>);
+    expect(screen.getByRole("button", { name: "Results acknowledged" })).toBeDisabled();
+    expect(screen.getByText(/Your opponent has not acknowledged yet/)).toBeInTheDocument();
+  });
+
+  it("requires server snapshots for rematch approval and shows the waiting state", async () => {
+    const user = userEvent.setup(); const state = completed(); const onRematch = vi.fn().mockResolvedValue(true);
+    const view = render(<LawyerDebateView {...props(room(state))} onRematch={onRematch}/>);
+    await user.click(screen.getByRole("button", { name: "Request rematch" })); expect(onRematch).toHaveBeenCalledExactlyOnceWith("debate-6b");
+    expect(screen.getByRole("heading", { name: "The presented cases are tied" })).toBeInTheDocument();
+    view.rerender(<LawyerDebateView {...props(room({ ...state, rematch: { A: "2030-01-01", B: null, nextDebateId: null } }))} onRematch={onRematch}/>);
+    expect(screen.getByRole("button", { name: "Waiting for opponent" })).toBeDisabled();
+    view.rerender(<LawyerDebateView {...props(room({ ...state, rematch: { A: null, B: "2030-01-01", nextDebateId: null } }))} onRematch={onRematch}/>);
+    await user.click(screen.getByRole("button", { name: "Approve rematch" })); expect(onRematch).toHaveBeenCalledTimes(2);
+  });
+
+  it("presents retryable jury failure without fabricating a verdict or enabling arguments", async () => {
+    const user = userEvent.setup(); const onRetryJury = vi.fn().mockResolvedValue(true);
+    const state = active({ debateId: "debate-6b", phase: "jury", state: null, activeSlot: null, juryStatus: { state: "retry_required", attempts: 3, retryAt: null, errorCode: "quota" } });
+    const view = render(<LawyerDebateView {...props(room(state))} onRetryJury={onRetryJury}/>);
+    expect(screen.getByText(/No verdict has been invented/)).toBeInTheDocument(); expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Retry jury review" })); expect(onRetryJury).toHaveBeenCalledExactlyOnceWith("debate-6b");
+    view.rerender(<LawyerDebateView {...props(room({ ...state, juryStatus: { ...state.juryStatus!, state: "retry_wait", retryAt: "2030-01-01T00:01:00Z" } }))} onRetryJury={onRetryJury}/>);
+    expect(screen.queryByRole("button", { name: "Retry jury review" })).not.toBeInTheDocument(); expect(screen.getByText(/A retry is scheduled/)).toBeInTheDocument();
+  });
+
+  it("filters the shared history by subtopic, judge summaries and verdict without leaking private conversations", async () => {
+    const user = userEvent.setup();
+    render(<LawyerDebateView {...props(room(active({ history: [message(), message({ id: "b-2", subtopic: 2, text: "Later argument", slot: "B", rawText: null }), message({ id: "summary", kind: "judge_summary", text: "Saved neutral summary", rawText: null, slot: null }), message({ id: "jury", kind: "jury_verdict", text: "Saved public jury decision", rawText: null, slot: null })], consultations: [{ id: "private", subtopic: 1, playerText: "Secret question", text: "Secret reply", source: "ai", status: "complete", createdAt: "2030-01-01" }] })))}/>);
+    const log = screen.getByRole("log", { name: "Public debate messages" }); const filter = screen.getByRole("combobox", { name: "Review messages" });
+    await user.selectOptions(filter, "2"); expect(log).toHaveTextContent("Later argument"); expect(log).not.toHaveTextContent("A public lawyer presentation");
+    await user.selectOptions(filter, "summaries"); expect(log).toHaveTextContent("Saved neutral summary"); expect(log).not.toHaveTextContent("Later argument");
+    await user.selectOptions(filter, "verdict"); expect(log).toHaveTextContent("Saved public jury decision"); expect(log).not.toHaveTextContent("Secret");
+  });
+});
+
+
+describe("Stage 6B public processing labels", () => {
+  it.each([
+    ["argument", "The lawyer is preparing this presentation…"],
+    ["judge_summary", "The judge is preparing this subtopic’s summary…"],
+    ["jury_verdict", "The jury is reviewing the public debate…"],
+    ["announcement", "The announcement is being prepared…"],
+  ] as const)("identifies the %s processing role in the shared transcript", (kind, text) => {
+    const phase = kind === "jury_verdict" ? "jury" : kind === "judge_summary" ? "summary" : "subtopic";
+    render(<LawyerDebateView {...props(room(active({ phase, history: [message({ kind, text: null, status: "pending", rawText: null })] })))}/>);
+    expect(within(screen.getByRole("log", { name: "Public debate messages" })).getByText(text)).toBeInTheDocument();
+  });
+});

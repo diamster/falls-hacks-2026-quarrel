@@ -6,7 +6,7 @@ import type { CharacterState } from "@/lib/preview";
 
 export type ArenaParticipants = Record<CharacterPosition, { name: string; characterId?: string | null }>;
 
-interface CounselMember { assetId: string; label: string; name: string; role: string; working?: boolean; status?: string }
+interface CounselMember { assetId: string; label: string; name: string; role: string; working?: boolean; status?: string; /** Words currently being spoken aloud (Stage 6B playback). */ speech?: string | null }
 /** Optional lawyers and jury placed in the scene itself (the debate screen); the lobby and preview omit them. */
 export interface ArenaCounsel { lawyers: Record<CharacterPosition, CounselMember>; jury: CounselMember }
 
@@ -39,8 +39,8 @@ export function DebateArena({ theme, players, dialogue, dialogueKey, paused, roo
           <PixelCharacter theme={theme} slot="B" displayName={players.B.name} characterId={players.B.characterId} state={turn?.activeSlot === "B" ? "speaking" : turn?.activeSlot ? "listening" : "idle"} paused={paused}/>
         </div>
         {counsel && <>
-          {(["A", "B"] as const).map(slot => { const lawyer = counsel.lawyers[slot]; return <figure key={slot} className={`court-counsel court-counsel--${slot}`} data-working={Boolean(lawyer.working)}>
-            {lawyer.working && <span className="court-counsel-busy">{lawyer.status ?? "Working…"}</span>}
+          {(["A", "B"] as const).map(slot => { const lawyer = counsel.lawyers[slot]; return <figure key={slot} className={`court-counsel court-counsel--${slot}`} data-working={Boolean(lawyer.working)} data-speaking={Boolean(lawyer.speech)}>
+            {lawyer.speech ? <p className="court-counsel-speech" data-readable-text>{lawyer.speech}</p> : lawyer.working && <span className="court-counsel-busy">{lawyer.status ?? "Working…"}</span>}
             <CharacterAsset assetId={lawyer.assetId} label={lawyer.label}/>
             <figcaption><strong>{lawyer.name}</strong><span>{lawyer.role}</span></figcaption>
           </figure>; })}

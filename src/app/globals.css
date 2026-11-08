@@ -743,7 +743,7 @@ button {color:inherit;}
 @keyframes counsel-bob {50%{transform:translateY(-3px)}}
 @keyframes counsel-busy {50%{opacity:.65}}
 .debate-arena[data-paused="true"] :is(.court-counsel-busy,.court-counsel>svg,.court-jury>svg) {animation-play-state:paused;}
-@media(prefers-reduced-motion:reduce){:is(.court-counsel,.court-jury)>svg,.court-counsel-busy{animation:none!important;}}
+@media(prefers-reduced-motion:reduce){.display-preferences:not([data-device-motion="ignore"]) :is(.court-counsel>svg,.court-jury>svg,.court-counsel-busy){animation:none!important;}}
 /* scale steps: by height so the bubble clears the judge, by width so the cast never overlaps */
 @container arena (max-height:500px) {.debate-arena[data-counsel="true"] .court-stage-inner {--sh:.9;}}
 @container arena (max-height:450px) {.debate-arena[data-counsel="true"] .court-stage-inner {--sh:.8;}}
@@ -757,3 +757,7 @@ button {color:inherit;}
 @container arena (max-width:520px) {.debate-arena[data-counsel="true"] .court-stage-inner {--sw:.52;}}
 @container arena (max-width:420px) {.debate-arena[data-counsel="true"] .court-stage-inner {--sw:.44;}}
 @container arena (max-width:600px) {.debate-arena[data-counsel="true"] .judge-speech {top:8px;width:min(300px,76%);padding:7px 10px;} .debate-arena[data-counsel="true"] .speech-text {font-size:14px;} .debate-arena[data-counsel="true"] .court-room-code {display:none;}}
+.court-counsel-speech {position:absolute;bottom:100%;left:50%;transform:translateX(-50%);z-index:6;width:max-content;max-width:260px;max-height:140px;overflow-y:auto;margin:0 0 6px;padding:7px 10px;border:2px solid var(--ink);background:var(--paper);color:var(--ink);font-size:13px;line-height:1.45;box-shadow:3px 3px 0 #0003;white-space:pre-wrap;overflow-wrap:anywhere;}
+.court-counsel--A .court-counsel-speech {left:0;transform:none;}
+.court-counsel--B .court-counsel-speech {left:auto;right:0;transform:none;}
+.court-counsel[data-speaking="true"]>svg {animation:counsel-bob .32s steps(2,end) infinite;}

@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SettingsPage } from "@/components/settings-page";
@@ -141,7 +141,7 @@ describe("Personal display preferences", () => {
     vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("blocked"); });
     vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("blocked"); });
     const user = userEvent.setup(); const view = showSettings();
-    expect(screen.getByText(/Browser storage is unavailable/)).toBeInTheDocument();
+    expect(within(screen.getByRole("region", { name: "Personal display" })).getByText(/Browser storage is unavailable/)).toBeInTheDocument();
     await user.click(screen.getByRole("checkbox", { name: /Reduce motion/ }));
     expect(view.container.querySelector(".display-preferences")).toHaveAttribute("data-reduced-motion", "true");
   });
