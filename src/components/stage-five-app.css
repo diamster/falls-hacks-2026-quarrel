@@ -113,3 +113,19 @@
 @container arena (max-width:640px) {.game-shell .debate-arena .judge-speech {--sw:0.62;}}
 @container arena (max-width:520px) {.game-shell .debate-arena .judge-speech {--sw:0.52;}}
 @container arena (max-width:420px) {.game-shell .debate-arena .judge-speech {--sw:0.44;}}
+/* HUD v2: a long, low input bar along the bottom; the cast gets all the room above it at full size. */
+@media(min-width:761px){
+  .game-shell div:has(>section[aria-labelledby="present-argument-title"]),.game-shell section[role="status"] {left:16px;right:calc(min(300px,24vw) + 32px);bottom:16px;width:auto;max-height:none;overflow:visible;}
+  .game-shell div:has(>section[aria-labelledby="present-argument-title"]) {display:grid;grid-template-columns:minmax(0,1fr) minmax(170px,220px);align-items:end;gap:8px;}
+  .game-shell section[aria-labelledby="present-argument-title"] form {padding:8px 12px 10px;gap:6px;}
+  .game-shell section[aria-labelledby="present-argument-title"] h3 {font-size:17px;}
+  .game-shell section[aria-labelledby="present-argument-title"] h3 span {display:inline;margin:0 0 0 8px;}
+  .game-shell section[aria-labelledby="present-argument-title"] p[role="status"] {position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;}
+  .game-shell section[aria-labelledby="present-argument-title"] textarea {min-height:48px;height:48px;resize:none;}
+  .game-shell div:has(>section[aria-labelledby="present-argument-title"])>details>summary {padding:10px 12px;gap:8px;}
+  .game-shell div:has(>section[aria-labelledby="present-argument-title"])>details>summary>span {font-size:15px;}
+  .game-shell div:has(>section[aria-labelledby="present-argument-title"])>details>summary small {display:none;}
+  .game-shell div:has(>section[aria-labelledby="present-argument-title"])>details[open] {grid-column:1/-1;max-height:50vh;overflow-y:auto;}
+  .game-shell .debate-arena .court-stage {inset:178px calc(min(300px,24vw) + 24px) 150px 16px !important;}
+}
+@media(min-width:761px) and (max-width:1180px){.game-shell .debate-arena .court-stage{top:206px!important}}
